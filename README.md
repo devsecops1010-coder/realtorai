@@ -85,6 +85,10 @@ pnpm api:test:e2e      # end-to-end (44 בדיקות, ~30 שניות)
 | /office | פרטי המשרד |
 | /admin | (platform_admin) MRR + tenants + usage |
 
+## תיעוד עיון נוסף
+
+- [`docs/permissions-enterprise.md`](docs/permissions-enterprise.md) — מודל ההרשאות המלא (9 roles עם Network/Branch/Team) שיוטמע כשיגיע לקוח רשת ראשון. ה-MVP הנוכחי משתמש ב-5 roles ברמת משרד יחיד.
+
 עברית RTL מלאה + פונט Heebo.
 
 ## סטטוס פיתוח
