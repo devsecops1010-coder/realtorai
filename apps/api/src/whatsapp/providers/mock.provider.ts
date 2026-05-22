@@ -21,13 +21,14 @@ export class MockWhatsAppProvider implements WhatsAppProvider {
   }
 
   parseIncoming(ctx: WebhookContext): IncomingMessage[] {
-    const body = ctx.body as { from?: string; body?: string; messageId?: string };
+    const body = ctx.body as { from?: string; to?: string; body?: string; messageId?: string };
     if (!body?.from || !body?.body) return [];
     return [
       {
         provider: this.name,
         providerMessageId: body.messageId ?? `mock-${Date.now()}`,
         from: body.from,
+        to: body.to,
         body: body.body,
         receivedAt: new Date(),
         raw: body,
