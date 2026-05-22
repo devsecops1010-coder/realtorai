@@ -1,4 +1,4 @@
-// Realtorai Prisma schema — Sprint 1
+// Realtorai Prisma schema — Sprint 2
 // Multi-tenant SaaS for real estate offices.
 // All tenant-owned models carry tenantId. Tenant scoping is enforced at runtime
 // by PrismaService's client extension (see src/prisma/tenant-extension.ts).
@@ -45,6 +45,90 @@ enum OptOutChannel {
   email
 }
 
+enum LeadStatus {
+  new
+  contacted
+  qualified
+  hot
+  meeting_scheduled
+  not_relevant
+  no_answer
+  opted_out
+  handoff_to_human
+}
+
+enum LeadTemperature {
+  cold
+  warm
+  hot
+}
+
+enum LeadIntent {
+  buy
+  sell
+  rent
+  list_for_rent
+  unknown
+}
+
+enum ConversationChannel {
+  whatsapp
+  voice
+  web
+  form
+  manual
+}
+
+enum ConversationStatus {
+  active
+  waiting
+  closed
+  handoff
+}
+
+enum MessageSenderType {
+  lead
+  user
+  ai_agent
+  system
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+  snoozed
+}
+
+enum TaskType {
+  followup
+  call_lead
+  visit
+  send_property
+  custom
+}
+
+enum TaskCreatedByType {
+  user
+  ai_agent
+  system
+}
+
+enum AgentType {
+  lead_responder
+  property_recruiter
+  crm_followup
+  qa_agent
+  support_agent
+}
+
+enum AgentStatus {
+  active
+  paused
+  disabled
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   name      String
@@ -53,10 +137,16 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  offices   Office[]
-  users     User[]
-  auditLogs AuditLog[]
-  optOuts   OptOut[]
+  offices       Office[]
+  users         User[]
+  auditLogs     AuditLog[]
+  optOuts       OptOut[]
+  leads         Lead[]
+  conversations Conversation[]
+  messages      Message[]
+  tasks         Task[]
+  agents        Agent[]
+  agentConfigs  AgentConfig[]
 
   @@map("tenants")
 }
@@ -74,7 +164,11 @@ model Office {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  users User[]
+  users         User[]
+  leads         Lead[]
+  conversations Conversation[]
+  tasks         Task[]
+  agents        Agent[]
 
   @@index([tenantId])
   @@map("offices")
@@ -97,6 +191,8 @@ model User {
   updatedAt    DateTime   @updatedAt
 
   refreshTokens RefreshToken[]
+  assignedLeads Lead[]         @relation("LeadAssignee")
+  assignedTasks Task[]         @relation("TaskAssignee")
 
   @@unique([tenantId, email])
   @@index([tenantId, officeId])
@@ -145,4 +241,150 @@ model OptOut {
   @@unique([tenantId, phone, channel])
   @@index([tenantId, phone])
   @@map("opt_outs")
+}
+
+model Lead {
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId       String
+  office         Office          @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  assignedUserId String?
+  assignedUser   User?           @relation("LeadAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  source         String? // free text: "whatsapp", "form", "manual", "external_X"
+  fullName       String?
+  phone          String?
+  email          String?
+  intent         LeadIntent      @default(unknown)
+  city           String?
+  area           String?
+  budgetMin      Int?
+  budgetMax      Int?
+  rooms          Float?
+  status         LeadStatus      @default(new)
+  temperature    LeadTemperature @default(cold)
+  nextFollowupAt DateTime?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  conversations Conversation[]
+  tasks         Task[]
+
+  @@index([tenantId, officeId])
+  @@index([tenantId, status])
+  @@index([tenantId, temperature])
+  @@index([tenantId, assignedUserId])
+  @@index([tenantId, phone])
+  @@map("leads")
+}
+
+model Agent {
+  id          String      @id @default(uuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId    String?
+  office      Office?     @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  type        AgentType
+  name        String
+  status      AgentStatus @default(paused)
+  modelPolicy Json? // routing hints for LLM Router (e.g. {"primary":"groq","quality":"claude"})
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  configs       AgentConfig[]
+  conversations Conversation[]
+
+  @@index([tenantId, type])
+  @@map("agents")
+}
+
+model AgentConfig {
+  id            String   @id @default(uuid())
+  agentId       String
+  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prompt        String
+  rules         Json     @default("{}")
+  tools         Json     @default("[]")
+  handoffRules  Json     @default("{}")
+  version       Int      @default(1)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([agentId, isActive])
+  @@index([tenantId, agentId])
+  @@map("agent_configs")
+}
+
+model Conversation {
+  id              String              @id @default(uuid())
+  tenantId        String
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId        String
+  office          Office              @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  channel         ConversationChannel
+  agentId         String?
+  agent           Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  status          ConversationStatus  @default(active)
+  startedAt       DateTime            @default(now())
+  endedAt         DateTime?
+  summary         String?
+  handoffRequired Boolean             @default(false)
+  metadata        Json?
+
+  messages Message[]
+
+  @@index([tenantId, officeId, status])
+  @@index([tenantId, leadId])
+  @@index([tenantId, agentId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String            @id @default(uuid())
+  tenantId       String
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType     MessageSenderType
+  senderId       String?
+  body           String
+  metadata       Json?
+  createdAt      DateTime          @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("messages")
+}
+
+model Task {
+  id              String            @id @default(uuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId        String
+  office          Office            @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  assignedUserId  String?
+  assignedUser    User?             @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  type            TaskType          @default(custom)
+  title           String
+  description     String?
+  status          TaskStatus        @default(open)
+  dueAt           DateTime?
+  createdByType   TaskCreatedByType @default(user)
+  createdById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  completedAt     DateTime?
+
+  @@index([tenantId, officeId, status])
+  @@index([tenantId, assignedUserId, status])
+  @@index([tenantId, leadId])
+  @@index([tenantId, dueAt])
+  @@map("tasks")
 }

@@ -11,6 +11,9 @@ import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { OfficesModule } from './offices/offices.module';
 import { UsersModule } from './users/users.module';
+import { LeadsModule } from './leads/leads.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { TasksModule } from './tasks/tasks.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -72,6 +75,9 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     TenantsModule,
     OfficesModule,
     UsersModule,
+    LeadsModule,
+    ConversationsModule,
+    TasksModule,
     HealthModule,
   ],
   providers: [

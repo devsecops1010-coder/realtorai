@@ -1,0 +1,131 @@
+// Types mirror what the API returns. Kept loose where Prisma enums add noise.
+
+export type UserRole =
+  | 'platform_admin'
+  | 'office_owner'
+  | 'office_manager'
+  | 'realtor'
+  | 'viewer';
+
+export type LeadStatus =
+  | 'new'
+  | 'contacted'
+  | 'qualified'
+  | 'hot'
+  | 'meeting_scheduled'
+  | 'not_relevant'
+  | 'no_answer'
+  | 'opted_out'
+  | 'handoff_to_human';
+
+export type LeadTemperature = 'cold' | 'warm' | 'hot';
+
+export type LeadIntent = 'buy' | 'sell' | 'rent' | 'list_for_rent' | 'unknown';
+
+export type TaskStatus = 'open' | 'in_progress' | 'done' | 'cancelled' | 'snoozed';
+export type TaskType = 'followup' | 'call_lead' | 'visit' | 'send_property' | 'custom';
+
+export type ConversationChannel = 'whatsapp' | 'voice' | 'web' | 'form' | 'manual';
+export type ConversationStatus = 'active' | 'waiting' | 'closed' | 'handoff';
+
+export interface AuthUser {
+  id: string;
+  tenantId: string;
+  officeId: string | null;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  tokens: AuthTokens;
+}
+
+export interface Office {
+  id: string;
+  name: string;
+  city: string | null;
+  areas: string[];
+  phone: string | null;
+  whatsappNumber: string | null;
+  status: string;
+}
+
+export interface Lead {
+  id: string;
+  tenantId: string;
+  officeId: string;
+  assignedUserId: string | null;
+  assignedUser?: { id: string; name: string } | null;
+  source: string | null;
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
+  intent: LeadIntent;
+  city: string | null;
+  area: string | null;
+  budgetMin: number | null;
+  budgetMax: number | null;
+  rooms: number | null;
+  status: LeadStatus;
+  temperature: LeadTemperature;
+  nextFollowupAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  type: TaskType;
+  status: TaskStatus;
+  leadId: string | null;
+  lead?: { id: string; fullName: string | null; phone: string | null } | null;
+  assignedUserId: string | null;
+  assignedUser?: { id: string; name: string } | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface ConversationListItem {
+  id: string;
+  channel: ConversationChannel;
+  status: ConversationStatus;
+  startedAt: string;
+  endedAt: string | null;
+  handoffRequired: boolean;
+  summary: string | null;
+  lead: { id: string; fullName: string | null; phone: string | null; status: string } | null;
+  agent: { id: string; type: string; name: string } | null;
+  _count: { messages: number };
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderType: 'lead' | 'user' | 'ai_agent' | 'system';
+  senderId: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface ConversationDetail extends Omit<ConversationListItem, '_count'> {
+  messages: Message[];
+}
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  take: number;
+  skip: number;
+}

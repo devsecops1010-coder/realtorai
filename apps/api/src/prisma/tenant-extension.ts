@@ -14,6 +14,12 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'OptOut',
   'AuditLog',
   'RefreshToken',
+  'Lead',
+  'Agent',
+  'AgentConfig',
+  'Conversation',
+  'Message',
+  'Task',
 ]);
 
 const TENANT_SCOPED_OPERATIONS = new Set<string>([
