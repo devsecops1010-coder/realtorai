@@ -71,6 +71,28 @@ enum LeadIntent {
   unknown
 }
 
+enum PropertyDealType {
+  sale
+  rent
+}
+
+enum PropertyCondition {
+  new
+  excellent
+  good
+  needs_renovation
+  for_demolition
+}
+
+enum PropertyStatus {
+  draft
+  active
+  pending
+  sold
+  rented
+  withdrawn
+}
+
 enum ConversationChannel {
   whatsapp
   voice
@@ -164,6 +186,7 @@ model Tenant {
   auditLogs     AuditLog[]
   optOuts       OptOut[]
   leads         Lead[]
+  properties    Property[]
   conversations Conversation[]
   messages      Message[]
   tasks         Task[]
@@ -190,6 +213,7 @@ model Office {
 
   users         User[]
   leads         Lead[]
+  properties    Property[]
   conversations Conversation[]
   tasks         Task[]
   agents        Agent[]
@@ -297,6 +321,7 @@ model Lead {
 
   conversations Conversation[]
   tasks         Task[]
+  properties    Property[]
 
   @@index([tenantId, officeId])
   @@index([tenantId, status])
@@ -304,6 +329,33 @@ model Lead {
   @@index([tenantId, assignedUserId])
   @@index([tenantId, phone])
   @@map("leads")
+}
+
+model Property {
+  id          String             @id @default(uuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId    String
+  office      Office             @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  ownerLeadId String?
+  ownerLead   Lead?              @relation(fields: [ownerLeadId], references: [id], onDelete: SetNull)
+  dealType    PropertyDealType
+  city        String?
+  area        String?
+  street      String?
+  rooms       Float?
+  floor       Int?
+  price       Int?
+  condition   PropertyCondition?
+  status      PropertyStatus     @default(draft)
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([tenantId, officeId, status])
+  @@index([tenantId, dealType])
+  @@index([tenantId, ownerLeadId])
+  @@map("properties")
 }
 
 model Agent {

@@ -7,6 +7,9 @@ import {
   NotificationType,
   OptOutChannel,
   Prisma,
+  PropertyCondition,
+  PropertyDealType,
+  PropertyStatus,
   TaskCreatedByType,
   TaskStatus,
   TaskType,
@@ -49,6 +52,10 @@ export class ToolsService {
           return await this.addOptOut(args, ctx);
         case 'handoff_to_human':
           return await this.handoffToHuman(args, ctx);
+        case 'create_property':
+          return await this.createProperty(args, ctx);
+        case 'update_property_fields':
+          return await this.updatePropertyFields(args, ctx);
         default:
           return { ok: false, error: `Unknown tool: ${name}` };
       }
@@ -276,6 +283,74 @@ export class ToolsService {
     });
 
     return { ok: true };
+  }
+
+  private async createProperty(args: {
+    dealType: PropertyDealType;
+    city?: string;
+    area?: string;
+    street?: string;
+    rooms?: number;
+    floor?: number;
+    price?: number;
+    condition?: PropertyCondition;
+    notes?: string;
+  }, ctx: ToolContext): Promise<ToolResult> {
+    if (!args.dealType) return { ok: false, error: 'dealType is required' };
+    const property = await this.prisma.unscoped().property.create({
+      data: {
+        tenantId: ctx.tenantId,
+        officeId: ctx.officeId,
+        ownerLeadId: ctx.leadId,
+        dealType: args.dealType,
+        city: args.city ?? null,
+        area: args.area ?? null,
+        street: args.street ?? null,
+        rooms: args.rooms ?? null,
+        floor: args.floor ?? null,
+        price: args.price ?? null,
+        condition: args.condition ?? null,
+        status: PropertyStatus.draft,
+        notes: args.notes ?? null,
+      },
+    });
+    await this.audit(ctx, 'property.create.ai', { propertyId: property.id });
+    return { ok: true, data: { id: property.id } };
+  }
+
+  private async updatePropertyFields(args: {
+    propertyId: string;
+    city?: string;
+    area?: string;
+    street?: string;
+    rooms?: number;
+    floor?: number;
+    price?: number;
+    condition?: PropertyCondition;
+    notes?: string;
+  }, ctx: ToolContext): Promise<ToolResult> {
+    if (!args.propertyId) return { ok: false, error: 'propertyId is required' };
+    const existing = await this.prisma.unscoped().property.findFirst({
+      where: { id: args.propertyId, tenantId: ctx.tenantId },
+    });
+    if (!existing) return { ok: false, error: 'Property not found' };
+
+    const data: Prisma.PropertyUncheckedUpdateInput = {};
+    if (args.city !== undefined) data.city = args.city;
+    if (args.area !== undefined) data.area = args.area;
+    if (args.street !== undefined) data.street = args.street;
+    if (args.rooms !== undefined) data.rooms = args.rooms;
+    if (args.floor !== undefined) data.floor = args.floor;
+    if (args.price !== undefined) data.price = args.price;
+    if (args.condition !== undefined) data.condition = args.condition;
+    if (args.notes !== undefined) data.notes = args.notes;
+
+    const property = await this.prisma.unscoped().property.update({
+      where: { id: args.propertyId, tenantId: ctx.tenantId },
+      data,
+    });
+    await this.audit(ctx, 'property.update.ai', { propertyId: property.id });
+    return { ok: true, data: { id: property.id } };
   }
 
   private async audit(ctx: ToolContext, action: string, target: unknown) {

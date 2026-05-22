@@ -14,6 +14,7 @@ import { UsersModule } from './users/users.module';
 import { LeadsModule } from './leads/leads.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { TasksModule } from './tasks/tasks.module';
+import { PropertiesModule } from './properties/properties.module';
 import { LlmModule } from './llm/llm.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { AgentsModule } from './agents/agents.module';
@@ -85,6 +86,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     LeadsModule,
     ConversationsModule,
     TasksModule,
+    PropertiesModule,
     LlmModule,
     WhatsAppModule,
     NotificationsModule,

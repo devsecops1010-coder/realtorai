@@ -36,8 +36,20 @@ export const TOOL_SPECS = [
   {
     name: 'handoff_to_human',
     description:
-      'Mark conversation for human follow-up. Required when: customer asks for a human, complaint, legal/financial guarantees needed, anger.',
+      'Mark conversation for human follow-up. Required when: customer asks for a human, complaint, legal/financial guarantees needed, anger, or property recruiter has real intent + basics.',
     args: 'reason: string; createTask?: boolean (default true)',
+  },
+  {
+    name: 'create_property',
+    description:
+      'Create a Property record linked to the current (owner) lead. Use when a property recruiter first learns concrete property details.',
+    args: 'dealType: sale|rent; city?: string; area?: string; street?: string; rooms?: number; floor?: number; price?: number; condition?: new|excellent|good|needs_renovation|for_demolition; notes?: string',
+  },
+  {
+    name: 'update_property_fields',
+    description:
+      'Update an existing Property record for the current lead. Use when the recruiter learns more details over time.',
+    args: 'propertyId: uuid; city?: string; area?: string; street?: string; rooms?: number; floor?: number; price?: number; condition?: enum; notes?: string',
   },
 ] as const;
 

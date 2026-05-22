@@ -14,6 +14,7 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import type { IncomingMessage } from '../whatsapp/types';
 import { ToolsService } from './tools/tools.service';
 import { buildLeadResponderSystemPrompt } from './prompts/lead-responder.prompt';
+import { buildPropertyRecruiterSystemPrompt } from './prompts/property-recruiter.prompt';
 import { parseAgentResponse } from './agent.types';
 import type { LlmMessage } from '../llm/types';
 
@@ -74,8 +75,13 @@ export class AgentOrchestratorService {
       },
     });
 
-    // 6. Load lead_responder agent (or create a default one).
-    const agent = await this.ensureLeadResponderAgent(office.tenantId, office.id);
+    // 6. Choose agent type from lead.intent (sell/list_for_rent ⇒ recruiter, else responder)
+    //    and load or create the agent for this office.
+    const agentType =
+      lead.intent === 'sell' || lead.intent === 'list_for_rent'
+        ? AgentType.property_recruiter
+        : AgentType.lead_responder;
+    const agent = await this.ensureAgent(office.tenantId, office.id, agentType);
     if (agent.status === AgentStatus.disabled) {
       this.logger.log(`Lead responder disabled for tenant ${office.tenantId}`);
       return { conversationId: conversation.id, replyBody: null };
@@ -104,23 +110,56 @@ export class AgentOrchestratorService {
       select: { senderType: true, body: true },
     });
 
-    const systemPrompt = buildLeadResponderSystemPrompt({
-      officeName: office.name,
-      city: office.city,
-      areas: office.areas,
-      lead: {
-        fullName: lead.fullName,
-        intent: lead.intent,
-        city: lead.city,
-        area: lead.area,
-        budgetMin: lead.budgetMin,
-        budgetMax: lead.budgetMax,
-        rooms: lead.rooms ? Number(lead.rooms) : null,
-        status: lead.status,
-      },
-      recentMessages: recent.reverse().map((m) => ({ senderType: m.senderType, body: m.body })),
-      language: 'he',
-    });
+    let systemPrompt: string;
+    if (agentType === AgentType.property_recruiter) {
+      const property = await this.prisma.unscoped().property.findFirst({
+        where: { tenantId: office.tenantId, ownerLeadId: lead.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      systemPrompt = buildPropertyRecruiterSystemPrompt({
+        officeName: office.name,
+        city: office.city,
+        areas: office.areas,
+        lead: {
+          fullName: lead.fullName,
+          intent: lead.intent,
+          city: lead.city,
+          area: lead.area,
+          rooms: lead.rooms ? Number(lead.rooms) : null,
+          status: lead.status,
+        },
+        knownProperty: property
+          ? {
+              dealType: property.dealType,
+              city: property.city,
+              area: property.area,
+              street: property.street,
+              rooms: property.rooms ? Number(property.rooms) : null,
+              price: property.price,
+            }
+          : null,
+        recentMessages: recent.reverse().map((m) => ({ senderType: m.senderType, body: m.body })),
+        language: 'he',
+      });
+    } else {
+      systemPrompt = buildLeadResponderSystemPrompt({
+        officeName: office.name,
+        city: office.city,
+        areas: office.areas,
+        lead: {
+          fullName: lead.fullName,
+          intent: lead.intent,
+          city: lead.city,
+          area: lead.area,
+          budgetMin: lead.budgetMin,
+          budgetMax: lead.budgetMax,
+          rooms: lead.rooms ? Number(lead.rooms) : null,
+          status: lead.status,
+        },
+        recentMessages: recent.reverse().map((m) => ({ senderType: m.senderType, body: m.body })),
+        language: 'he',
+      });
+    }
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -322,17 +361,24 @@ export class AgentOrchestratorService {
     });
   }
 
-  private async ensureLeadResponderAgent(tenantId: string, officeId: string) {
+  private async ensureAgent(tenantId: string, officeId: string, type: AgentType) {
     const existing = await this.prisma.unscoped().agent.findFirst({
-      where: { tenantId, officeId, type: AgentType.lead_responder },
+      where: { tenantId, officeId, type },
     });
     if (existing) return existing;
+    const defaultNames: Record<AgentType, string> = {
+      [AgentType.lead_responder]: 'Lead Responder',
+      [AgentType.property_recruiter]: 'Property Recruiter',
+      [AgentType.crm_followup]: 'CRM Followup',
+      [AgentType.qa_agent]: 'QA Agent',
+      [AgentType.support_agent]: 'Support Agent',
+    };
     return this.prisma.unscoped().agent.create({
       data: {
         tenantId,
         officeId,
-        type: AgentType.lead_responder,
-        name: 'Lead Responder',
+        type,
+        name: defaultNames[type],
         status: AgentStatus.active,
       },
     });

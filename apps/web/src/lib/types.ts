@@ -143,6 +143,29 @@ export interface Notification {
   metadata: Record<string, unknown> | null;
 }
 
+export type PropertyDealType = 'sale' | 'rent';
+export type PropertyCondition = 'new' | 'excellent' | 'good' | 'needs_renovation' | 'for_demolition';
+export type PropertyStatus = 'draft' | 'active' | 'pending' | 'sold' | 'rented' | 'withdrawn';
+
+export interface Property {
+  id: string;
+  tenantId: string;
+  officeId: string;
+  ownerLeadId: string | null;
+  ownerLead?: { id: string; fullName: string | null; phone: string | null } | null;
+  dealType: PropertyDealType;
+  city: string | null;
+  area: string | null;
+  street: string | null;
+  rooms: number | null;
+  floor: number | null;
+  price: number | null;
+  condition: PropertyCondition | null;
+  status: PropertyStatus;
+  notes: string | null;
+  createdAt: string;
+}
+
 export interface ReportsToday {
   date: string;
   counts: {
