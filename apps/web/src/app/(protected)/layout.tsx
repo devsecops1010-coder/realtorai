@@ -20,9 +20,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (!ready) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <Sidebar />
-      <main className="flex-1 p-8 overflow-x-hidden">{children}</main>
+      <main className="flex-1 p-6 md:p-10 overflow-x-hidden max-w-[1600px] mx-auto w-full">{children}</main>
     </div>
   );
 }

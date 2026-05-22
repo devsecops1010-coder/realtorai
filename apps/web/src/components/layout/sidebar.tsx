@@ -3,7 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell, Building, Shield, Banknote } from 'lucide-react';
+import {
+  Users,
+  ListTodo,
+  MessageSquare,
+  Home,
+  LogOut,
+  Building2,
+  Bell,
+  Building,
+  Shield,
+  Banknote,
+  Sparkles,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { clearAuth, getCurrentUser } from '@/lib/auth';
@@ -58,13 +70,23 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 border-l bg-card flex flex-col h-screen sticky top-0">
-      <div className="p-6 border-b">
-        <h1 className="font-bold text-lg">Realtorai</h1>
-        {user && <p className="text-xs text-muted-foreground mt-1">{user.name}</p>}
-        {user && <p className="text-xs text-muted-foreground" dir="ltr">{user.email}</p>}
+    <aside className="w-64 border-l bg-card/80 backdrop-blur flex flex-col h-screen sticky top-0">
+      <div className="p-5 border-b">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-fuchsia-500 grid place-items-center shadow-soft">
+            <Sparkles className="h-4 w-4 text-white" />
+          </div>
+          <span className="font-bold text-lg">Realtorai</span>
+        </Link>
+        {user && (
+          <div className="mt-4 px-3 py-2 rounded-lg bg-muted/50">
+            <p className="text-sm font-medium truncate">{user.name}</p>
+            <p className="text-xs text-muted-foreground truncate" dir="ltr">{user.email}</p>
+          </div>
+        )}
       </div>
-      <nav className="flex-1 p-4 space-y-1">
+
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -73,42 +95,50 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center justify-between gap-3 px-3 py-2 rounded-md text-sm transition-colors',
-                active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                'flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                active
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground/70 hover:text-foreground hover:bg-accent/50',
               )}
             >
               <span className="flex items-center gap-3">
-                <Icon className="h-4 w-4" />
+                <Icon className={cn('h-4 w-4', active && 'text-primary')} />
                 {item.label}
               </span>
               {item.badge && unreadCount > 0 && (
-                <span className="bg-rose-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1.25rem] text-center">
+                <span className="bg-rose-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1.5rem] text-center font-semibold">
                   {unreadCount}
                 </span>
               )}
             </Link>
           );
         })}
+
         {(user?.role === 'platform_admin' || user?.role === 'platform_owner') && (() => {
           const active = pathname === adminNavItem.href || pathname.startsWith(adminNavItem.href + '/');
           const Icon = adminNavItem.icon;
           return (
-            <Link
-              key={adminNavItem.href}
-              href={adminNavItem.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors mt-4 border-t pt-4',
-                active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {adminNavItem.label}
-            </Link>
+            <div className="pt-4 mt-4 border-t">
+              <p className="px-3 mb-1 text-xs uppercase tracking-wider text-muted-foreground">פלטפורמה</p>
+              <Link
+                href={adminNavItem.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  active
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground/70 hover:text-foreground hover:bg-accent/50',
+                )}
+              >
+                <Icon className={cn('h-4 w-4', active && 'text-primary')} />
+                {adminNavItem.label}
+              </Link>
+            </div>
           );
         })()}
       </nav>
-      <div className="p-4 border-t">
-        <Button variant="outline" className="w-full" onClick={logout}>
+
+      <div className="p-3 border-t">
+        <Button variant="ghost" className="w-full justify-start" onClick={logout}>
           <LogOut className="h-4 w-4 ml-2" />
           התנתקות
         </Button>
