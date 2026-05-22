@@ -251,6 +251,9 @@ model Tenant {
   extraMessageIls       Decimal @default(0) @db.Decimal(8, 2)
   extraCallMinuteIls    Decimal @default(0) @db.Decimal(8, 2)
   successFeePct         Decimal @default(0) @db.Decimal(5, 2)
+  // Hard cap on USD spent on LLM calls per calendar month. 0 = unlimited.
+  // Enforced by BillingService.checkLlmBudget before LlmRouterService.chat().
+  monthlyLlmBudgetUsd   Decimal @default(0) @db.Decimal(10, 4)
   billingNotes          String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

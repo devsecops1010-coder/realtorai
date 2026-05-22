@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
   AgentStatus,
   AgentType,
@@ -7,10 +7,12 @@ import {
   LeadStatus,
   MessageSenderType,
   Prisma,
+  UsageEventType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmRouterService } from '../llm/llm-router.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { BillingService } from '../billing/billing.service';
 import type { IncomingMessage } from '../whatsapp/types';
 import { ToolsService } from './tools/tools.service';
 import { buildLeadResponderSystemPrompt } from './prompts/lead-responder.prompt';
@@ -27,6 +29,7 @@ export class AgentOrchestratorService {
     private readonly llm: LlmRouterService,
     private readonly whatsapp: WhatsAppService,
     private readonly tools: ToolsService,
+    private readonly billing: BillingService,
   ) {}
 
   /**
@@ -166,6 +169,22 @@ export class AgentOrchestratorService {
       { role: 'user', content: incoming.body },
     ];
 
+    // LLM budget gate. If the tenant has set a monthly cap and exhausted it,
+    // we refuse to call the model. The conversation is flipped to handoff so
+    // a human can pick up — better UX than silent failure.
+    const budget = await this.billing.checkLlmBudget(office.tenantId);
+    if (!budget.allowed) {
+      this.logger.warn(
+        `LLM budget exhausted for tenant=${office.tenantId} (${budget.currentUsage}/${budget.limit} USD) — handing off conversation ${conversation.id}`,
+      );
+      await this.billing.checkThresholdNotifications(office.tenantId, office.id, UsageEventType.llm_tokens);
+      await this.prisma.unscoped().conversation.update({
+        where: { id: conversation.id },
+        data: { handoffRequired: true, status: ConversationStatus.handoff },
+      });
+      return { conversationId: conversation.id, replyBody: null };
+    }
+
     const llmResult = await this.llm.chat(messages, {
       tenantId: office.tenantId,
       officeId: office.id,
@@ -175,6 +194,9 @@ export class AgentOrchestratorService {
       responseFormat: 'json',
       temperature: 0.4,
     });
+
+    // Fire 80%/100% LLM budget alerts (idempotent per month).
+    await this.billing.checkThresholdNotifications(office.tenantId, office.id, UsageEventType.llm_tokens);
 
     const decision = parseAgentResponse(llmResult.content);
 
@@ -260,6 +282,15 @@ export class AgentOrchestratorService {
       recentMessages: [],
       language: 'he',
     });
+
+    // Apply the same budget gate to the test endpoint so we don't burn through
+    // the cap from the UI.
+    const budget = await this.billing.checkLlmBudget(tenantId);
+    if (!budget.allowed) {
+      throw new ForbiddenException(
+        `LLM budget exhausted (${budget.currentUsage}/${budget.limit} USD this month)`,
+      );
+    }
 
     const result = await this.llm.chat(
       [

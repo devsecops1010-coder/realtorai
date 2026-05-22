@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, ArrowLeft } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
-import { saveAuth } from '@/lib/auth';
+import { saveUser } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,7 +38,7 @@ export default function RegisterPage() {
         body: form,
         skipAuth: true,
       });
-      saveAuth(res.tokens, res.user);
+      saveUser(res.user);
       router.push('/dashboard');
     } catch (err) {
       const e = err as ApiError;

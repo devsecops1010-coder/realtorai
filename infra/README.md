@@ -27,8 +27,11 @@ infra/
 ├── backups/
 │   ├── pg-backup.sh
 │   ├── pg-restore.sh
-│   └── install-cron.sh
-└── .env.example
+│   ├── offsite-sync.sh
+│   ├── install-cron.sh
+│   └── install-offsite.sh
+├── .env.example
+└── .env.offsite.example
 ```
 
 Secrets stay in `infra/.env` and `apps/api/.env` — **never** committed.
@@ -80,6 +83,11 @@ sudo bash infra/backups/install-cron.sh
 # Verify backup once now:
 infra/backups/pg-backup.sh
 infra/backups/pg-restore.sh --smoke
+
+# 9. Off-site backups (recommended — protects against host loss)
+sudo bash infra/backups/install-offsite.sh
+# Smoke-test the off-site sync once:
+infra/backups/offsite-sync.sh
 ```
 
 ---
@@ -97,6 +105,9 @@ infra/backups/pg-restore.sh --smoke
 | Smoke-test restore | `infra/backups/pg-restore.sh --smoke` |
 | List backups | `ls -la /var/backups/realtorai/daily/` |
 | Backup log | `tail -f /var/log/realtorai-backup.log` |
+| Sync to off-site now | `infra/backups/offsite-sync.sh` |
+| Off-site log | `tail -f /var/log/realtorai-offsite.log` |
+| List off-site files | `rclone ls "$OFFSITE_REMOTE/$(hostname -s)"` |
 
 ## Deploying a new version
 

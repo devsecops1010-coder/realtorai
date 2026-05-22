@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -35,6 +35,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { RequestContextInterceptor } from './common/interceptors/request-context.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { CookieParserMiddleware } from './common/middleware/cookie-parser.middleware';
 
 @Module({
   imports: [
@@ -120,4 +121,10 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply cookie-parser to every request so JwtStrategy + AuthController
+    // can read/write the rai_access / rai_refresh httpOnly cookies.
+    consumer.apply(CookieParserMiddleware).forRoutes('*');
+  }
+}

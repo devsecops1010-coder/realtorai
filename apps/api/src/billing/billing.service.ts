@@ -55,6 +55,39 @@ export class BillingService {
     };
   }
 
+  /**
+   * Aggregate cost-based budget: sums UsageEvent.costEstimate for the current
+   * month (across all LLM providers) and refuses the call when the tenant has
+   * exhausted Tenant.monthlyLlmBudgetUsd. 0 = unlimited (default for new
+   * tenants — the field is opt-in until billing is configured).
+   *
+   * Returned numbers are USD with up to 6 fractional digits. `currentUsage`
+   * and `limit` are expressed in the same unit to keep callers simple.
+   */
+  async checkLlmBudget(tenantId: string): Promise<QuotaCheck> {
+    const [tenant, used] = await Promise.all([
+      this.prisma.unscoped().tenant.findUnique({
+        where: { id: tenantId },
+        select: { monthlyLlmBudgetUsd: true },
+      }),
+      this.currentMonthLlmCostUsd(tenantId),
+    ]);
+    if (!tenant) {
+      return { allowed: false, unlimited: false, currentUsage: 0, limit: 0, remaining: 0 };
+    }
+    const limit = Number(tenant.monthlyLlmBudgetUsd ?? 0);
+    if (limit === 0) {
+      return { allowed: true, unlimited: true, currentUsage: used, limit: 0, remaining: -1 };
+    }
+    return {
+      allowed: used < limit,
+      unlimited: false,
+      currentUsage: used,
+      limit,
+      remaining: Math.max(0, limit - used),
+    };
+  }
+
   async checkCallMinuteQuota(tenantId: string, minutes: number): Promise<QuotaCheck> {
     const [tenant, used] = await Promise.all([
       this.prisma.unscoped().tenant.findUnique({
@@ -91,7 +124,9 @@ export class BillingService {
     const check =
       type === UsageEventType.whatsapp_message
         ? await this.checkWhatsAppMessageQuota(tenantId)
-        : await this.checkCallMinuteQuota(tenantId, 0);
+        : type === UsageEventType.llm_tokens
+          ? await this.checkLlmBudget(tenantId)
+          : await this.checkCallMinuteQuota(tenantId, 0);
 
     if (check.unlimited || check.limit === 0) return;
     const pct = check.currentUsage / check.limit;
@@ -141,12 +176,28 @@ export class BillingService {
     });
     return agg._sum.quantity ?? 0;
   }
+
+  private async currentMonthLlmCostUsd(tenantId: string): Promise<number> {
+    const since = new Date();
+    since.setDate(1);
+    since.setHours(0, 0, 0, 0);
+    const agg = await this.prisma.unscoped().usageEvent.aggregate({
+      where: {
+        tenantId,
+        type: UsageEventType.llm_tokens,
+        createdAt: { gte: since },
+      },
+      _sum: { costEstimate: true },
+    });
+    return Number(agg._sum.costEstimate ?? 0);
+  }
 }
 
 function labelFor(type: UsageEventType): string {
   switch (type) {
     case UsageEventType.whatsapp_message: return 'הודעות WhatsApp';
     case UsageEventType.call_minute: return 'דקות שיחה';
+    case UsageEventType.llm_tokens: return 'תקציב LLM (USD)';
     default: return String(type);
   }
 }

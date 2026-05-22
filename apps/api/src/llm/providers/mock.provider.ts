@@ -22,6 +22,10 @@ export class MockLlmProvider implements LlmProvider {
     MockLlmProvider.scripted = [];
   }
 
+  static queuedCount(): number {
+    return MockLlmProvider.scripted.length;
+  }
+
   async chat(messages: LlmMessage[], opts: LlmChatOptions = {}): Promise<LlmChatResult> {
     const start = Date.now();
 

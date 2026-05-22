@@ -144,4 +144,54 @@ describe('Billing enforcement + Zod tool validation (e2e)', () => {
     });
     expect(quotaNotif).not.toBeNull();
   });
+
+  it('LLM budget gate: refuses agent call + flips conversation to handoff when monthly cap is exhausted', async () => {
+    const t = await registerTenant(app);
+    // Set a tiny LLM budget and pre-burn it with an existing usage event.
+    await prisma.unscoped().tenant.update({
+      where: { id: t.tenantId },
+      data: { monthlyLlmBudgetUsd: '1.0000' },
+    });
+    await prisma.unscoped().usageEvent.create({
+      data: {
+        tenantId: t.tenantId,
+        officeId: t.officeId,
+        type: 'llm_tokens',
+        provider: 'mock',
+        quantity: 1000,
+        costEstimate: '2.5000',
+      },
+    });
+    await prisma.unscoped().office.update({
+      where: { id: t.officeId },
+      data: { whatsappNumber: '+97250000204' },
+    });
+
+    // Agent must NOT consume this — budget is exhausted before the call.
+    MockLlmProvider.pushResponse(JSON.stringify({ reply: 'לא צריך להגיע', actions: [] }));
+
+    await request(app.getHttpServer())
+      .post('/webhooks/whatsapp')
+      .send({ from: '+972503000010', to: '+97250000204', body: 'שלום', messageId: 'llm-1' })
+      .expect(200);
+
+    // No outbound WhatsApp message because the LLM was never called.
+    expect(MockWhatsAppProvider.sent.length).toBe(0);
+    // The pushed mock response should still be queued (we didn't consume it).
+    expect(MockLlmProvider.queuedCount()).toBe(1);
+
+    // Conversation should exist and be flagged for handoff.
+    const conv = await prisma.unscoped().conversation.findFirst({
+      where: { tenantId: t.tenantId },
+    });
+    expect(conv).not.toBeNull();
+    expect(conv!.handoffRequired).toBe(true);
+    expect(conv!.status).toBe('handoff');
+
+    // A 100% LLM-budget alert should have been emitted.
+    const alert = await prisma.unscoped().notification.findFirst({
+      where: { tenantId: t.tenantId, type: 'system', title: { contains: 'חרגת' } },
+    });
+    expect(alert).not.toBeNull();
+  });
 });

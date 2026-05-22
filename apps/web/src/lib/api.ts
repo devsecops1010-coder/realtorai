@@ -1,5 +1,4 @@
-import { clearAuth, getAccessToken, getRefreshToken, saveAuth } from './auth';
-import type { AuthResponse } from './types';
+import { clearAuth } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -26,34 +25,31 @@ async function rawRequest(path: string, opts: RequestOptions = {}): Promise<Resp
     'Content-Type': 'application/json',
     ...(opts.headers ?? {}),
   };
-  if (!opts.skipAuth) {
-    const token = getAccessToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
 
+  // `credentials: 'include'` makes the browser send the rai_access / rai_refresh
+  // httpOnly cookies along with the request. The API reads them via cookie-parser.
+  // We no longer attach an Authorization header from the client.
   const res = await fetch(`${API_URL}${path}`, {
     ...opts,
     headers,
+    credentials: 'include',
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   return res;
 }
 
 async function attemptRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
   try {
+    // The refresh token lives in the rai_refresh httpOnly cookie, so the body
+    // is empty — the server reads it from the cookie. On success the server
+    // also rotates both cookies.
     const res = await rawRequest('/auth/refresh', {
       method: 'POST',
-      body: { refreshToken },
+      body: {},
       skipAuth: true,
       skipRefresh: true,
     });
-    if (!res.ok) return false;
-    const tokens = (await res.json()) as AuthResponse['tokens'];
-    const user = JSON.parse(localStorage.getItem('realtorai_user') ?? 'null');
-    if (user) saveAuth(tokens, user);
-    return true;
+    return res.ok;
   } catch {
     return false;
   }

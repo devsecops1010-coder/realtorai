@@ -1,24 +1,16 @@
-import type { AuthTokens, AuthUser } from './types';
+import type { AuthUser } from './types';
 
-const ACCESS_KEY = 'realtorai_access';
-const REFRESH_KEY = 'realtorai_refresh';
+// Tokens now live in httpOnly cookies (rai_access / rai_refresh) set by the API.
+// We only mirror the user profile in localStorage so the UI can show identity
+// without an extra /auth/me round-trip on every navigation. The user object
+// alone is NOT proof of auth — cookies are. `isAuthenticated()` is a UX hint:
+// if the cookie has been revoked server-side, the next API call gets 401 and
+// the api.ts interceptor redirects to /login.
 const USER_KEY = 'realtorai_user';
 
-export function saveAuth(tokens: AuthTokens, user: AuthUser) {
+export function saveUser(user: AuthUser) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(ACCESS_KEY, tokens.accessToken);
-  localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
-}
-
-export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ACCESS_KEY);
-}
-
-export function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(REFRESH_KEY);
 }
 
 export function getCurrentUser(): AuthUser | null {
@@ -34,11 +26,9 @@ export function getCurrentUser(): AuthUser | null {
 
 export function clearAuth() {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACCESS_KEY);
-  localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
 export function isAuthenticated(): boolean {
-  return Boolean(getAccessToken());
+  return Boolean(getCurrentUser());
 }
