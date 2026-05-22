@@ -18,6 +18,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RequestContext } from '../../common/context/request-context';
 import { NotificationsService } from '../../notifications/notifications.service';
 import type { ToolContext, ToolResult } from './tool.types';
+import { validateToolArgs } from './tool-schemas-zod';
 
 @Injectable()
 export class ToolsService {
@@ -30,9 +31,18 @@ export class ToolsService {
 
   async execute(name: string, args: any, ctx: ToolContext): Promise<ToolResult> {
     this.logger.debug(`Tool ${name} called by agent ${ctx.agentId}`);
+    // Validate args against the per-tool zod schema BEFORE executing. The LLM
+    // can emit malformed objects (wrong type, missing required, off-enum
+    // values); we refuse + audit instead of letting Prisma blow up later.
+    const validated = validateToolArgs(name, args);
+    if (!validated.ok) {
+      this.logger.warn(`Tool ${name} args rejected: ${validated.error}`);
+      await this.audit(ctx, 'tool.invalid_args', { tool: name, reason: validated.error });
+      return { ok: false, error: validated.error };
+    }
     // All tool calls happen unscoped — agent doesn't go through HTTP layer that sets CLS.
     // We use RequestContext.runUnscoped to bypass tenant guard but pass tenantId explicitly.
-    return RequestContext.runUnscoped(() => this.dispatch(name, args, ctx));
+    return RequestContext.runUnscoped(() => this.dispatch(name, validated.data, ctx));
   }
 
   private async dispatch(name: string, args: any, ctx: ToolContext): Promise<ToolResult> {

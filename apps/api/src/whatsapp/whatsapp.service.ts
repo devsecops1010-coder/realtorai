@@ -1,8 +1,9 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsageEventType } from '@prisma/client';
 import type { Env } from '../config/env.schema';
 import { UsageEventsService } from '../llm/usage-events.service';
+import { BillingService } from '../billing/billing.service';
 import { MockWhatsAppProvider } from './providers/mock.provider';
 import { TwilioWhatsAppProvider } from './providers/twilio.provider';
 import { MetaWhatsAppProvider } from './providers/meta.provider';
@@ -18,6 +19,7 @@ export class WhatsAppService {
   constructor(
     private readonly config: ConfigService<Env, true>,
     private readonly usage: UsageEventsService,
+    private readonly billing: BillingService,
   ) {
     this.provider = this.buildProvider();
     this.logger.log(`WhatsApp provider: ${this.provider.name}`);
@@ -43,6 +45,18 @@ export class WhatsAppService {
     msg: OutgoingMessage,
     meta: { officeId?: string | null; conversationId?: string | null } = {},
   ): Promise<SentMessage> {
+    // Billing enforcement: refuse to send when the tenant has exhausted its
+    // monthly quota. tenant.includedMessages=0 means unlimited (default).
+    const quota = await this.billing.checkWhatsAppMessageQuota(tenantId);
+    if (!quota.allowed) {
+      this.logger.warn(
+        `WhatsApp send blocked for tenant=${tenantId}: usage=${quota.currentUsage}/${quota.limit}`,
+      );
+      // Make sure the 100% alert is sent the first time we hit it
+      await this.billing.checkThresholdNotifications(tenantId, meta.officeId ?? null, UsageEventType.whatsapp_message);
+      throw new ForbiddenException('Monthly WhatsApp message quota exceeded');
+    }
+
     const sent = await this.provider.sendMessage(msg);
     await this.usage.record({
       tenantId,
@@ -53,6 +67,8 @@ export class WhatsAppService {
       quantity: 1,
       metadata: { direction: 'outbound', to: msg.to, providerId: sent.providerId },
     });
+    // 80% / 100% threshold notifications (idempotent per month)
+    await this.billing.checkThresholdNotifications(tenantId, meta.officeId ?? null, UsageEventType.whatsapp_message);
     return sent;
   }
 

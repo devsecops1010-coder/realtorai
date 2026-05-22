@@ -11,11 +11,14 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import type { Request, Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AgentOrchestratorService } from '../agents/orchestrator.service';
 import type { WebhookContext } from '../whatsapp/types';
+import { QUEUES, type IncomingMessageJobData } from '../queues/queue-names';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -24,6 +27,7 @@ export class WebhooksController {
   constructor(
     private readonly whatsapp: WhatsAppService,
     private readonly orchestrator: AgentOrchestratorService,
+    @InjectQueue(QUEUES.INCOMING_MESSAGE) private readonly incomingQueue: Queue<IncomingMessageJobData>,
   ) {}
 
   /**
@@ -73,19 +77,51 @@ export class WebhooksController {
       return { ok: false, error: 'invalid_signature' };
     }
 
-    const results: Array<{ from: string; conversationId: string; replied: boolean }> = [];
+    // Optional sync mode for tests; default is async via BullMQ.
+    const syncFlag = headers['x-realtorai-sync'];
+    const runSync = process.env.NODE_ENV === 'test' || syncFlag === '1' || syncFlag === 'true';
+
+    const routing: { tenantId?: string; officeId?: string } = {};
+    const officeIdHeader = headers['x-realtorai-office-id'];
+    if (typeof officeIdHeader === 'string') routing.officeId = officeIdHeader;
+
+    if (runSync) {
+      const results: Array<{ from: string; conversationId: string; replied: boolean }> = [];
+      for (const msg of incoming) {
+        try {
+          const out = await this.orchestrator.handleIncoming(msg, routing);
+          results.push({ from: msg.from, conversationId: out.conversationId, replied: !!out.replyBody });
+        } catch (err) {
+          this.logger.error(`Agent handling failed for ${msg.from}: ${(err as Error).message}`);
+        }
+      }
+      return { ok: true, processed: results.length, results, async: false };
+    }
+
+    // Async: enqueue each message and return immediately.
+    const queued: Array<{ from: string; jobId: string }> = [];
     for (const msg of incoming) {
       try {
-        const routing: { tenantId?: string; officeId?: string } = {};
-        const officeIdHeader = headers['x-realtorai-office-id'];
-        if (typeof officeIdHeader === 'string') routing.officeId = officeIdHeader;
-        const out = await this.orchestrator.handleIncoming(msg, routing);
-        results.push({ from: msg.from, conversationId: out.conversationId, replied: !!out.replyBody });
+        const job = await this.incomingQueue.add(
+          'incoming',
+          {
+            provider: msg.provider,
+            providerMessageId: msg.providerMessageId,
+            from: msg.from,
+            to: msg.to,
+            body: msg.body,
+            receivedAt: msg.receivedAt.toISOString(),
+            raw: msg.raw,
+            routing,
+          },
+          { jobId: `${msg.provider}-${msg.providerMessageId}` },
+        );
+        queued.push({ from: msg.from, jobId: job.id ?? '' });
       } catch (err) {
-        this.logger.error(`Agent handling failed for ${msg.from}: ${(err as Error).message}`);
+        this.logger.error(`Failed to enqueue webhook for ${msg.from}: ${(err as Error).message}`);
       }
     }
-    return { ok: true, processed: results.length, results };
+    return { ok: true, processed: queued.length, queued, async: true };
   }
 
   /**

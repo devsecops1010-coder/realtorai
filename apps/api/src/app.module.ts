@@ -19,6 +19,9 @@ import { LlmModule } from './llm/llm.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { AgentsModule } from './agents/agents.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { QueueModule } from './queues/queue.module';
+import { SentryModule } from './sentry/sentry.module';
+import { BillingModule } from './billing/billing.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
@@ -95,8 +98,11 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     LlmModule,
     WhatsAppModule,
     NotificationsModule,
+    BillingModule,
     AgentsModule,
+    QueueModule,
     WebhooksModule,
+    SentryModule,
     ReportsModule,
     SchedulerModule,
     OnboardingModule,

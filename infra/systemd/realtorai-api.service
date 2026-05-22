@@ -13,7 +13,6 @@ WorkingDirectory=/home/ubuntu/realtorai/apps/api
 EnvironmentFile=/home/ubuntu/realtorai/apps/api/.env
 # NODE_ENV here makes the API enforce the production guardrails added in
 # config/env.schema.ts (required JWT_SECRET, real LLM key, non-mock WhatsApp).
-Environment=NODE_ENV=production
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.npm-global/bin
 
 ExecStart=/usr/bin/node /home/ubuntu/realtorai/apps/api/dist/main.js
