@@ -17,6 +17,8 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const role: UserRole | undefined = request.user?.role;
     if (!role) throw new ForbiddenException('No role on request');
+    // platform_owner is the super-admin and is implicitly granted every role.
+    if (role === 'platform_owner') return true;
     if (!requiredRoles.includes(role)) {
       throw new ForbiddenException(`Role ${role} not allowed`);
     }

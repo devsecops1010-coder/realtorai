@@ -88,7 +88,7 @@ export function Sidebar() {
             </Link>
           );
         })}
-        {user?.role === 'platform_admin' && (() => {
+        {(user?.role === 'platform_admin' || user?.role === 'platform_owner') && (() => {
           const active = pathname === adminNavItem.href || pathname.startsWith(adminNavItem.href + '/');
           const Icon = adminNavItem.icon;
           return (

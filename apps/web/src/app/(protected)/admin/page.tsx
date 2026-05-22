@@ -47,7 +47,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const u = getCurrentUser();
-    if (u?.role !== 'platform_admin') {
+    if (u?.role !== 'platform_admin' && u?.role !== 'platform_owner') {
       router.replace('/dashboard');
       return;
     }

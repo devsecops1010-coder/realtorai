@@ -14,6 +14,7 @@ datasource db {
 }
 
 enum UserRole {
+  platform_owner
   platform_admin
   office_owner
   office_manager

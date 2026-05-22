@@ -1,6 +1,7 @@
 // Types mirror what the API returns. Kept loose where Prisma enums add noise.
 
 export type UserRole =
+  | 'platform_owner'
   | 'platform_admin'
   | 'office_owner'
   | 'office_manager'
