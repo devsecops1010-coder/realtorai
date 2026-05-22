@@ -1,0 +1,40 @@
+[Unit]
+Description=Realtorai Web (Next.js)
+Documentation=https://github.com/devsecops1010-coder/realtorai
+After=network-online.target realtorai-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/realtorai/apps/web
+EnvironmentFile=-/home/ubuntu/realtorai/apps/web/.env.local
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=HOSTNAME=127.0.0.1
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.npm-global/bin
+
+ExecStart=/home/ubuntu/.npm-global/bin/pnpm --filter @realtorai/web start
+
+Restart=on-failure
+RestartSec=5s
+StartLimitBurst=10
+StartLimitIntervalSec=120s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=realtorai-web
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

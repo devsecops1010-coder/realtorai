@@ -1,0 +1,105 @@
+# Realtorai reverse proxy + auto HTTPS.
+#
+# Edit /etc/caddy/Caddyfile (the install script copies this there) to set:
+#   - The real domains (replace example.com)
+#   - The contact email for Let's Encrypt
+#
+# Two recommended setups:
+#
+#   A. Single-domain (recommended for a single office customer):
+#        realtorai.example.com → web (3001)
+#        realtorai.example.com/api/* → api (3000), strip /api prefix
+#
+#   B. Subdomain split (recommended for multi-office / multiple installs):
+#        app.realtorai.example.com → web (3001)
+#        api.realtorai.example.com → api (3000)
+#
+# This file ships setup B. Switch by commenting/uncommenting blocks below.
+#
+# Health checks: /health on both API and Web do NOT require auth.
+# Internal-only: localhost:3000/3001 are bound to 127.0.0.1 in the systemd
+# units; only Caddy reaches them.
+
+{
+	email admin@example.com
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory  # uncomment for staging
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# ===== SETUP B: subdomain split =====
+
+app.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3001 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	# Security headers (Helmet handles API; add the same for web)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "no-referrer-when-downgrade"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/app.log
+		format json
+	}
+}
+
+api.example.com {
+	encode zstd gzip
+	# Webhook bodies can be large enough to matter; raise limit
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/api.log
+		format json
+	}
+}
+
+# ===== SETUP A: single domain (uncomment to use, comment out B above) =====
+#
+# realtorai.example.com {
+# 	encode zstd gzip
+# 	@api path /api/* /webhooks/* /health /ready
+# 	handle @api {
+# 		# Strip /api prefix so NestJS sees /leads, /webhooks/whatsapp, etc.
+# 		uri strip_prefix /api
+# 		reverse_proxy 127.0.0.1:3000 {
+# 			header_up X-Real-IP {remote_host}
+# 			header_up X-Forwarded-Proto {scheme}
+# 		}
+# 	}
+# 	handle {
+# 		reverse_proxy 127.0.0.1:3001 {
+# 			header_up X-Real-IP {remote_host}
+# 			header_up X-Forwarded-Proto {scheme}
+# 		}
+# 	}
+# 	header {
+# 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# 		X-Content-Type-Options "nosniff"
+# 		X-Frame-Options "SAMEORIGIN"
+# 		Referrer-Policy "no-referrer-when-downgrade"
+# 		-Server
+# 	}
+# 	log {
+# 		output file /var/log/caddy/realtorai.log
+# 		format json
+# 	}
+# }

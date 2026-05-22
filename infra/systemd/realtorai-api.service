@@ -1,0 +1,43 @@
+[Unit]
+Description=Realtorai API (NestJS)
+Documentation=https://github.com/devsecops1010-coder/realtorai
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/realtorai/apps/api
+EnvironmentFile=/home/ubuntu/realtorai/apps/api/.env
+# NODE_ENV here makes the API enforce the production guardrails added in
+# config/env.schema.ts (required JWT_SECRET, real LLM key, non-mock WhatsApp).
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.npm-global/bin
+
+ExecStart=/usr/bin/node /home/ubuntu/realtorai/apps/api/dist/main.js
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=5s
+StartLimitBurst=10
+StartLimitIntervalSec=120s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=realtorai-api
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
