@@ -3,6 +3,8 @@ import {
   LeadIntent,
   LeadStatus,
   LeadTemperature,
+  NotificationSeverity,
+  NotificationType,
   OptOutChannel,
   Prisma,
   TaskCreatedByType,
@@ -11,13 +13,17 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RequestContext } from '../../common/context/request-context';
+import { NotificationsService } from '../../notifications/notifications.service';
 import type { ToolContext, ToolResult } from './tool.types';
 
 @Injectable()
 export class ToolsService {
   private readonly logger = new Logger(ToolsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async execute(name: string, args: any, ctx: ToolContext): Promise<ToolResult> {
     this.logger.debug(`Tool ${name} called by agent ${ctx.agentId}`);
@@ -58,15 +64,33 @@ export class ToolsService {
     ctx: ToolContext,
   ): Promise<ToolResult> {
     if (!ctx.leadId) return { ok: false, error: 'No leadId in context' };
+    const before = await this.prisma.unscoped().lead.findFirst({
+      where: { id: ctx.leadId, tenantId: ctx.tenantId },
+      select: { temperature: true, status: true },
+    });
     const updated = await this.prisma.unscoped().lead.update({
       where: { id: ctx.leadId, tenantId: ctx.tenantId },
       data: {
         status: args.status,
         ...(args.temperature && { temperature: args.temperature }),
       },
-      select: { id: true, status: true, temperature: true },
+      select: { id: true, status: true, temperature: true, fullName: true, phone: true, officeId: true },
     });
     await this.audit(ctx, 'lead.status_update.ai', updated);
+
+    if (before && before.temperature !== 'hot' && updated.temperature === 'hot') {
+      await this.notifications.broadcast({
+        tenantId: ctx.tenantId,
+        officeId: updated.officeId,
+        type: NotificationType.hot_lead,
+        severity: NotificationSeverity.alert,
+        title: '🔥 ליד חם',
+        body: `${updated.fullName ?? updated.phone ?? 'ליד'} סומן כחם על ידי הסוכן`,
+        link: `/leads/${updated.id}`,
+        metadata: { leadId: updated.id, reason: 'temperature_to_hot' },
+      });
+    }
+
     return { ok: true, data: updated };
   }
 
@@ -239,6 +263,18 @@ export class ToolsService {
     });
 
     await this.audit(ctx, 'conversation.handoff.ai', { reason: args.reason });
+
+    await this.notifications.broadcast({
+      tenantId: ctx.tenantId,
+      officeId: ctx.officeId,
+      type: NotificationType.handoff_required,
+      severity: NotificationSeverity.alert,
+      title: '🤝 דרושה התערבות אנושית',
+      body: `שיחה הועברה: ${args.reason}`,
+      link: `/conversations/${ctx.conversationId}`,
+      metadata: { conversationId: ctx.conversationId, reason: args.reason },
+    });
+
     return { ok: true };
   }
 

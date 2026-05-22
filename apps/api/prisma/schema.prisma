@@ -137,6 +137,20 @@ enum UsageEventType {
   storage
 }
 
+enum NotificationSeverity {
+  info
+  warning
+  alert
+}
+
+enum NotificationType {
+  hot_lead
+  handoff_required
+  followup_due
+  daily_summary
+  system
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   name      String
@@ -156,6 +170,7 @@ model Tenant {
   agents        Agent[]
   agentConfigs  AgentConfig[]
   usageEvents   UsageEvent[]
+  notifications Notification[]
 
   @@map("tenants")
 }
@@ -179,6 +194,7 @@ model Office {
   tasks         Task[]
   agents        Agent[]
   usageEvents   UsageEvent[]
+  notifications Notification[]
 
   @@index([tenantId])
   @@map("offices")
@@ -203,6 +219,7 @@ model User {
   refreshTokens RefreshToken[]
   assignedLeads Lead[]         @relation("LeadAssignee")
   assignedTasks Task[]         @relation("TaskAssignee")
+  notifications Notification[]
 
   @@unique([tenantId, email])
   @@index([tenantId, officeId])
@@ -369,6 +386,28 @@ model Message {
   @@index([conversationId, createdAt])
   @@index([tenantId, createdAt])
   @@map("messages")
+}
+
+model Notification {
+  id          String               @id @default(uuid())
+  tenantId    String
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId    String?
+  office      Office?              @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        NotificationType
+  severity    NotificationSeverity @default(info)
+  title       String
+  body        String?
+  link        String?
+  metadata    Json?
+  readAt      DateTime?
+  createdAt   DateTime             @default(now())
+
+  @@index([tenantId, userId, readAt, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@map("notifications")
 }
 
 model UsageEvent {

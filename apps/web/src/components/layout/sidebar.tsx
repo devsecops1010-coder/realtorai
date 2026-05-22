@@ -1,18 +1,21 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ListTodo, MessageSquare, Home, LogOut, Building2 } from 'lucide-react';
+import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { clearAuth, getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import type { Notification as AppNotification } from '@/lib/types';
 
 const navItems = [
   { href: '/dashboard', label: 'דשבורד', icon: Home },
   { href: '/leads', label: 'לידים', icon: Users },
   { href: '/tasks', label: 'משימות', icon: ListTodo },
   { href: '/conversations', label: 'שיחות', icon: MessageSquare },
+  { href: '/notifications', label: 'התראות', icon: Bell, badge: true as const },
   { href: '/office', label: 'המשרד שלי', icon: Building2 },
 ];
 
@@ -20,6 +23,25 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const user = getCurrentUser();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const list = await api<AppNotification[]>('/notifications?unreadOnly=true');
+        if (!cancelled) setUnreadCount(list.length);
+      } catch {
+        /* ignore */
+      }
+    }
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [pathname]);
 
   async function logout() {
     try {
@@ -47,12 +69,19 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                'flex items-center justify-between gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
               )}
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex items-center gap-3">
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </span>
+              {item.badge && unreadCount > 0 && (
+                <span className="bg-rose-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1.25rem] text-center">
+                  {unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

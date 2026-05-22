@@ -123,6 +123,41 @@ export interface ConversationDetail extends Omit<ConversationListItem, '_count'>
   messages: Message[];
 }
 
+export type NotificationType =
+  | 'hot_lead'
+  | 'handoff_required'
+  | 'followup_due'
+  | 'daily_summary'
+  | 'system';
+export type NotificationSeverity = 'info' | 'warning' | 'alert';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  severity: NotificationSeverity;
+  title: string;
+  body: string | null;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface ReportsToday {
+  date: string;
+  counts: {
+    totalLeads: number;
+    newLeadsToday: number;
+    hotLeads: number;
+    qualifiedLeads: number;
+    meetingsScheduled: number;
+    openTasks: number;
+    tasksDueToday: number;
+    handoffConvos: number;
+    messagesToday: number;
+  };
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;

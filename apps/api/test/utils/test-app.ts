@@ -25,6 +25,7 @@ export async function resetDatabase(prisma: PrismaService) {
   // Truncate in FK-safe order via CASCADE.
   await prisma.$executeRawUnsafe(
     'TRUNCATE TABLE ' +
+      '"notifications", "usage_events", ' +
       '"messages", "tasks", "conversations", "agent_configs", "agents", ' +
       '"leads", "refresh_tokens", "audit_logs", "opt_outs", "users", "offices", "tenants" ' +
       'RESTART IDENTITY CASCADE',
