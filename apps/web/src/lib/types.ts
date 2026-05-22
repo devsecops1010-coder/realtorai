@@ -144,6 +144,74 @@ export interface Notification {
   metadata: Record<string, unknown> | null;
 }
 
+export type MortgageStatus =
+  | 'unknown'
+  | 'not_relevant'
+  | 'needs_advisor'
+  | 'referred'
+  | 'contacted_by_advisor'
+  | 'pre_approved'
+  | 'declined';
+
+export type MortgageReadiness = 'unknown' | 'not_ready' | 'partial' | 'ready' | 'approved';
+
+export type ReferralStatus =
+  | 'pending'
+  | 'contacted'
+  | 'qualified'
+  | 'in_process'
+  | 'closed_won'
+  | 'closed_lost'
+  | 'declined';
+
+export interface MortgageAdvisor {
+  id: string;
+  fullName: string;
+  company: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  status: string;
+  createdAt: string;
+  _count?: { referrals: number };
+}
+
+export interface MortgageProfile {
+  id: string;
+  leadId: string;
+  estimatedPrice: number | null;
+  estimatedEquity: number | null;
+  monthlyIncome: number | null;
+  hasPreApproval: boolean;
+  preApprovalAmount: number | null;
+  preApprovalBank: string | null;
+  status: MortgageStatus;
+  readiness: MortgageReadiness;
+  readinessScore: number | null;
+  consentToShareWithAdvisor: boolean;
+  consentTimestamp: string | null;
+  consentText: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lead?: { id: string; fullName: string | null; phone: string | null; intent: string; city: string | null };
+  referrals?: MortgageReferral[];
+  _count?: { referrals: number };
+}
+
+export interface MortgageReferral {
+  id: string;
+  mortgageProfileId: string;
+  advisorId: string;
+  status: ReferralStatus;
+  notes: string | null;
+  referredAt: string;
+  contactedAt: string | null;
+  closedAt: string | null;
+  advisor?: { id: string; fullName: string; company: string | null };
+  profile?: { lead: { id: string; fullName: string | null; phone: string | null } };
+}
+
 export type PropertyDealType = 'sale' | 'rent';
 export type PropertyCondition = 'new' | 'excellent' | 'good' | 'needs_renovation' | 'for_demolition';
 export type PropertyStatus = 'draft' | 'active' | 'pending' | 'sold' | 'rented' | 'withdrawn';

@@ -372,6 +372,7 @@ export class AgentOrchestratorService {
       [AgentType.crm_followup]: 'CRM Followup',
       [AgentType.qa_agent]: 'QA Agent',
       [AgentType.support_agent]: 'Support Agent',
+      [AgentType.mortgage_intake]: 'Mortgage Intake',
     };
     return this.prisma.unscoped().agent.create({
       data: {

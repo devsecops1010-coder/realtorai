@@ -51,6 +51,30 @@ export const TOOL_SPECS = [
       'Update an existing Property record for the current lead. Use when the recruiter learns more details over time.',
     args: 'propertyId: uuid; city?: string; area?: string; street?: string; rooms?: number; floor?: number; price?: number; condition?: enum; notes?: string',
   },
+  {
+    name: 'collect_mortgage_info',
+    description:
+      'Save mortgage-related info extracted in conversation with a buy-intent lead. Use whenever a new fact is learned. NEVER ask for documents or sensitive IDs.',
+    args: 'estimatedPrice?: number; estimatedEquity?: number; monthlyIncome?: number; hasPreApproval?: boolean; preApprovalAmount?: number; preApprovalBank?: string',
+  },
+  {
+    name: 'record_mortgage_consent',
+    description:
+      'Record explicit consent to share the client info with a mortgage advisor. consentText must contain the exact wording the customer agreed to. Required before refer_to_mortgage_advisor.',
+    args: 'consent: boolean; consentText: string (the wording the customer agreed to)',
+  },
+  {
+    name: 'refer_to_mortgage_advisor',
+    description:
+      'Create a referral from the current lead to a mortgage advisor. Will fail if consent was not recorded first.',
+    args: 'advisorId: uuid; notes?: string',
+  },
+  {
+    name: 'mark_mortgage_not_relevant',
+    description:
+      'Mark that the customer does not need a mortgage (cash buyer or chose not to share). Sets MortgageProfile.status=not_relevant.',
+    args: 'reason?: string',
+  },
 ] as const;
 
 export type ToolName = (typeof TOOL_SPECS)[number]['name'];

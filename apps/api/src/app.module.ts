@@ -26,6 +26,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { AdminModule } from './admin/admin.module';
 import { ExportsModule } from './exports/exports.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { MortgageModule } from './mortgage/mortgage.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -102,6 +103,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     AdminModule,
     ExportsModule,
     MarketingModule,
+    MortgageModule,
     HealthModule,
   ],
   providers: [

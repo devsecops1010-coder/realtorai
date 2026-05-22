@@ -129,7 +129,36 @@ enum TaskType {
   call_lead
   visit
   send_property
+  mortgage_followup
   custom
+}
+
+enum MortgageStatus {
+  unknown
+  not_relevant
+  needs_advisor
+  referred
+  contacted_by_advisor
+  pre_approved
+  declined
+}
+
+enum MortgageReadiness {
+  unknown
+  not_ready
+  partial
+  ready
+  approved
+}
+
+enum ReferralStatus {
+  pending
+  contacted
+  qualified
+  in_process
+  closed_won
+  closed_lost
+  declined
 }
 
 enum TaskCreatedByType {
@@ -144,6 +173,7 @@ enum AgentType {
   crm_followup
   qa_agent
   support_agent
+  mortgage_intake
 }
 
 enum AgentStatus {
@@ -173,6 +203,10 @@ enum NotificationType {
   daily_summary
   system
   contact_request
+  mortgage_referred
+  mortgage_pre_approved
+  mortgage_not_relevant
+  mortgage_advisor_idle
 }
 
 enum ContactRequestStatus {
@@ -221,19 +255,22 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  offices       Office[]
-  users         User[]
-  auditLogs     AuditLog[]
-  optOuts       OptOut[]
-  leads         Lead[]
-  properties    Property[]
-  conversations Conversation[]
-  messages      Message[]
-  tasks         Task[]
-  agents        Agent[]
-  agentConfigs  AgentConfig[]
-  usageEvents   UsageEvent[]
-  notifications Notification[]
+  offices            Office[]
+  users              User[]
+  auditLogs          AuditLog[]
+  optOuts            OptOut[]
+  leads              Lead[]
+  properties         Property[]
+  conversations      Conversation[]
+  messages           Message[]
+  tasks              Task[]
+  agents             Agent[]
+  agentConfigs       AgentConfig[]
+  usageEvents        UsageEvent[]
+  notifications      Notification[]
+  mortgageAdvisors   MortgageAdvisor[]
+  mortgageProfiles   MortgageProfile[]
+  mortgageReferrals  MortgageReferral[]
 
   @@map("tenants")
 }
@@ -359,9 +396,10 @@ model Lead {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  conversations Conversation[]
-  tasks         Task[]
-  properties    Property[]
+  conversations    Conversation[]
+  tasks            Task[]
+  properties       Property[]
+  mortgageProfile  MortgageProfile?
 
   @@index([tenantId, officeId])
   @@index([tenantId, status])
@@ -369,6 +407,82 @@ model Lead {
   @@index([tenantId, assignedUserId])
   @@index([tenantId, phone])
   @@map("leads")
+}
+
+model MortgageAdvisor {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fullName  String
+  company   String?
+  phone     String?
+  email     String?
+  notes     String?
+  status    String   @default("active") // active, paused
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referrals MortgageReferral[]
+
+  @@index([tenantId, status])
+  @@map("mortgage_advisors")
+}
+
+model MortgageProfile {
+  id                        String            @id @default(uuid())
+  tenantId                  String
+  tenant                    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId                    String            @unique
+  lead                      Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Minimal financial info — no documents, no sensitive IDs per spec section 29.
+  estimatedPrice            Int?     // budget for the property
+  estimatedEquity           Int?     // הון עצמי משוער
+  hasPreApproval            Boolean  @default(false)
+  preApprovalAmount         Int?
+  preApprovalBank           String?  // free text, no validation
+  monthlyIncome             Int?     // optional
+
+  // Status and score
+  status                    MortgageStatus    @default(unknown)
+  readinessScore            Int?     // 0-100
+  readiness                 MortgageReadiness @default(unknown)
+
+  // Consent — required before sharing with any advisor
+  consentToShareWithAdvisor Boolean  @default(false)
+  consentTimestamp          DateTime?
+  consentText               String?
+
+  notes                     String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  referrals MortgageReferral[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, readiness])
+  @@map("mortgage_profiles")
+}
+
+model MortgageReferral {
+  id                String          @id @default(uuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mortgageProfileId String
+  profile           MortgageProfile @relation(fields: [mortgageProfileId], references: [id], onDelete: Cascade)
+  advisorId         String
+  advisor           MortgageAdvisor @relation(fields: [advisorId], references: [id], onDelete: Restrict)
+  status            ReferralStatus  @default(pending)
+  notes             String?
+  referredAt        DateTime        @default(now())
+  contactedAt       DateTime?
+  closedAt          DateTime?
+  updatedAt         DateTime        @updatedAt
+
+  @@index([tenantId, status])
+  @@index([advisorId, status])
+  @@index([mortgageProfileId])
+  @@map("mortgage_referrals")
 }
 
 model Property {

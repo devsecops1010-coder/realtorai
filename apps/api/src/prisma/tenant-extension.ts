@@ -23,6 +23,9 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'UsageEvent',
   'Notification',
   'Property',
+  'MortgageAdvisor',
+  'MortgageProfile',
+  'MortgageReferral',
 ]);
 
 const TENANT_SCOPED_OPERATIONS = new Set<string>([

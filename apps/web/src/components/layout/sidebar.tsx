@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell, Building, Shield } from 'lucide-react';
+import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell, Building, Shield, Banknote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { clearAuth, getCurrentUser } from '@/lib/auth';
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/dashboard', label: 'דשבורד', icon: Home },
   { href: '/leads', label: 'לידים', icon: Users },
   { href: '/properties', label: 'נכסים', icon: Building },
+  { href: '/mortgage', label: 'משכנתאות', icon: Banknote },
   { href: '/tasks', label: 'משימות', icon: ListTodo },
   { href: '/conversations', label: 'שיחות', icon: MessageSquare },
   { href: '/notifications', label: 'התראות', icon: Bell, badge: true as const },

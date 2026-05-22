@@ -56,6 +56,14 @@ export class ToolsService {
           return await this.createProperty(args, ctx);
         case 'update_property_fields':
           return await this.updatePropertyFields(args, ctx);
+        case 'collect_mortgage_info':
+          return await this.collectMortgageInfo(args, ctx);
+        case 'record_mortgage_consent':
+          return await this.recordMortgageConsent(args, ctx);
+        case 'refer_to_mortgage_advisor':
+          return await this.referToMortgageAdvisor(args, ctx);
+        case 'mark_mortgage_not_relevant':
+          return await this.markMortgageNotRelevant(args, ctx);
         default:
           return { ok: false, error: `Unknown tool: ${name}` };
       }
@@ -351,6 +359,175 @@ export class ToolsService {
     });
     await this.audit(ctx, 'property.update.ai', { propertyId: property.id });
     return { ok: true, data: { id: property.id } };
+  }
+
+  // ---------- Mortgage tools ----------
+
+  private async ensureMortgageProfile(ctx: ToolContext) {
+    if (!ctx.leadId) throw new Error('No leadId in context');
+    const existing = await this.prisma.unscoped().mortgageProfile.findFirst({
+      where: { tenantId: ctx.tenantId, leadId: ctx.leadId },
+    });
+    if (existing) return existing;
+    return this.prisma.unscoped().mortgageProfile.create({
+      data: { tenantId: ctx.tenantId, leadId: ctx.leadId },
+    });
+  }
+
+  private computeReadinessScore(p: {
+    estimatedPrice: number | null;
+    estimatedEquity: number | null;
+    hasPreApproval: boolean;
+    monthlyIncome: number | null;
+  }): { score: number; bucket: 'unknown' | 'not_ready' | 'partial' | 'ready' | 'approved' } {
+    let score = 0;
+    if (p.hasPreApproval) score += 50;
+    if (p.estimatedPrice && p.estimatedPrice > 0) score += 10;
+    if (p.monthlyIncome && p.monthlyIncome >= 12000) score += 15;
+    if (p.estimatedEquity && p.estimatedPrice && p.estimatedEquity / p.estimatedPrice >= 0.25) score += 20;
+    else if (p.estimatedEquity && p.estimatedPrice) score += 5;
+    score = Math.min(100, score);
+    let bucket: 'unknown' | 'not_ready' | 'partial' | 'ready' | 'approved' = 'unknown';
+    if (p.hasPreApproval) bucket = 'approved';
+    else if (score >= 60) bucket = 'ready';
+    else if (score >= 30) bucket = 'partial';
+    else if (p.estimatedPrice || p.estimatedEquity || p.monthlyIncome) bucket = 'not_ready';
+    return { score, bucket };
+  }
+
+  private async collectMortgageInfo(args: {
+    estimatedPrice?: number;
+    estimatedEquity?: number;
+    monthlyIncome?: number;
+    hasPreApproval?: boolean;
+    preApprovalAmount?: number;
+    preApprovalBank?: string;
+  }, ctx: ToolContext): Promise<ToolResult> {
+    const profile = await this.ensureMortgageProfile(ctx);
+    const data: Prisma.MortgageProfileUncheckedUpdateInput = {};
+    if (args.estimatedPrice !== undefined) data.estimatedPrice = args.estimatedPrice;
+    if (args.estimatedEquity !== undefined) data.estimatedEquity = args.estimatedEquity;
+    if (args.monthlyIncome !== undefined) data.monthlyIncome = args.monthlyIncome;
+    if (args.hasPreApproval !== undefined) data.hasPreApproval = args.hasPreApproval;
+    if (args.preApprovalAmount !== undefined) data.preApprovalAmount = args.preApprovalAmount;
+    if (args.preApprovalBank !== undefined) data.preApprovalBank = args.preApprovalBank;
+
+    const merged = {
+      estimatedPrice: args.estimatedPrice ?? profile.estimatedPrice,
+      estimatedEquity: args.estimatedEquity ?? profile.estimatedEquity,
+      hasPreApproval: args.hasPreApproval ?? profile.hasPreApproval,
+      monthlyIncome: args.monthlyIncome ?? profile.monthlyIncome,
+    };
+    const r = this.computeReadinessScore(merged);
+    data.readinessScore = r.score;
+    data.readiness = r.bucket as any;
+
+    const becomesPreApproved = args.hasPreApproval === true && !profile.hasPreApproval;
+    if (becomesPreApproved) {
+      data.status = 'pre_approved';
+    } else if (profile.status === 'unknown') {
+      data.status = 'needs_advisor';
+    }
+
+    const updated = await this.prisma.unscoped().mortgageProfile.update({
+      where: { id: profile.id, tenantId: ctx.tenantId },
+      data,
+    });
+    await this.audit(ctx, 'mortgage.profile_update.ai', { profileId: profile.id });
+
+    if (becomesPreApproved) {
+      await this.notifications.broadcast({
+        tenantId: ctx.tenantId,
+        officeId: ctx.officeId,
+        type: NotificationType.mortgage_pre_approved,
+        severity: NotificationSeverity.alert,
+        title: '✅ ליד עם אישור עקרוני',
+        body: `לקוח הצהיר על אישור עקרוני${args.preApprovalBank ? ' מ-' + args.preApprovalBank : ''}`,
+        link: ctx.leadId ? `/leads/${ctx.leadId}` : null,
+        metadata: { leadId: ctx.leadId, profileId: profile.id },
+      } as any);
+    }
+
+    return { ok: true, data: { profileId: updated.id, readinessScore: updated.readinessScore } };
+  }
+
+  private async recordMortgageConsent(args: { consent: boolean; consentText: string }, ctx: ToolContext): Promise<ToolResult> {
+    if (typeof args.consent !== 'boolean') return { ok: false, error: 'consent (boolean) required' };
+    if (!args.consentText || args.consentText.length < 10) {
+      return { ok: false, error: 'consentText must capture the wording the customer agreed to' };
+    }
+    const profile = await this.ensureMortgageProfile(ctx);
+    const updated = await this.prisma.unscoped().mortgageProfile.update({
+      where: { id: profile.id, tenantId: ctx.tenantId },
+      data: {
+        consentToShareWithAdvisor: args.consent,
+        consentTimestamp: args.consent ? new Date() : null,
+        consentText: args.consentText,
+      },
+    });
+    await this.audit(ctx, 'mortgage.consent.ai', { profileId: profile.id, consent: args.consent });
+    return { ok: true, data: { consent: updated.consentToShareWithAdvisor } };
+  }
+
+  private async referToMortgageAdvisor(args: { advisorId: string; notes?: string }, ctx: ToolContext): Promise<ToolResult> {
+    if (!args.advisorId) return { ok: false, error: 'advisorId required' };
+    const profile = await this.ensureMortgageProfile(ctx);
+    if (!profile.consentToShareWithAdvisor) {
+      return { ok: false, error: 'אסור להעביר ליועץ ללא הסכמה מפורשת. קרא תחילה ל-record_mortgage_consent' };
+    }
+    const advisor = await this.prisma.unscoped().mortgageAdvisor.findFirst({
+      where: { id: args.advisorId, tenantId: ctx.tenantId },
+    });
+    if (!advisor) return { ok: false, error: 'Advisor not found' };
+    if (advisor.status !== 'active') return { ok: false, error: 'Advisor is not active' };
+
+    const referral = await this.prisma.unscoped().mortgageReferral.create({
+      data: {
+        tenantId: ctx.tenantId,
+        mortgageProfileId: profile.id,
+        advisorId: advisor.id,
+        notes: args.notes ?? null,
+      },
+    });
+    await this.prisma.unscoped().mortgageProfile.update({
+      where: { id: profile.id, tenantId: ctx.tenantId },
+      data: { status: 'referred' },
+    });
+
+    await this.audit(ctx, 'mortgage.referral.ai', { referralId: referral.id, advisorId: advisor.id });
+
+    await this.notifications.broadcast({
+      tenantId: ctx.tenantId,
+      officeId: ctx.officeId,
+      type: NotificationType.mortgage_referred,
+      severity: NotificationSeverity.info,
+      title: '💰 הליד הופנה ליועץ משכנתאות',
+      body: `הופנה ל-${advisor.fullName}`,
+      link: ctx.leadId ? `/leads/${ctx.leadId}` : null,
+      metadata: { leadId: ctx.leadId, profileId: profile.id, advisorId: advisor.id },
+    } as any);
+
+    return { ok: true, data: { referralId: referral.id } };
+  }
+
+  private async markMortgageNotRelevant(args: { reason?: string }, ctx: ToolContext): Promise<ToolResult> {
+    const profile = await this.ensureMortgageProfile(ctx);
+    const updated = await this.prisma.unscoped().mortgageProfile.update({
+      where: { id: profile.id, tenantId: ctx.tenantId },
+      data: { status: 'not_relevant', notes: args.reason ?? null },
+    });
+    await this.audit(ctx, 'mortgage.not_relevant.ai', { profileId: profile.id, reason: args.reason });
+    await this.notifications.broadcast({
+      tenantId: ctx.tenantId,
+      officeId: ctx.officeId,
+      type: NotificationType.mortgage_not_relevant,
+      severity: NotificationSeverity.info,
+      title: 'לקוח ללא צורך במשכנתא',
+      body: args.reason ?? 'הלקוח אינו זקוק למשכנתא',
+      link: ctx.leadId ? `/leads/${ctx.leadId}` : null,
+      metadata: { leadId: ctx.leadId, profileId: profile.id },
+    } as any);
+    return { ok: true, data: { profileId: updated.id } };
   }
 
   private async audit(ctx: ToolContext, action: string, target: unknown) {
