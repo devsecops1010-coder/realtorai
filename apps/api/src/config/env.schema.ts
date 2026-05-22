@@ -20,6 +20,29 @@ export const envSchema = z.object({
   AUTH_THROTTLE_LIMIT: z.coerce.number().int().positive().default(5),
 
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+
+  // LLM provider keys — all optional. LLM Router falls back to Mock if none configured.
+  GROQ_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+
+  // WhatsApp provider selection: mock | twilio | meta | dialog360
+  WHATSAPP_PROVIDER: z.enum(['mock', 'twilio', 'meta', 'dialog360']).default('mock'),
+  WHATSAPP_WEBHOOK_SECRET: z.string().optional(),
+
+  // Twilio
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+
+  // Meta Cloud API
+  META_PHONE_NUMBER_ID: z.string().optional(),
+  META_ACCESS_TOKEN: z.string().optional(),
+  META_VERIFY_TOKEN: z.string().optional(),
+
+  // 360dialog
+  DIALOG360_API_KEY: z.string().optional(),
+  DIALOG360_BASE_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -14,6 +14,10 @@ import { UsersModule } from './users/users.module';
 import { LeadsModule } from './leads/leads.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { TasksModule } from './tasks/tasks.module';
+import { LlmModule } from './llm/llm.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { AgentsModule } from './agents/agents.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -78,6 +82,10 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     LeadsModule,
     ConversationsModule,
     TasksModule,
+    LlmModule,
+    WhatsAppModule,
+    AgentsModule,
+    WebhooksModule,
     HealthModule,
   ],
   providers: [

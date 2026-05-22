@@ -16,6 +16,9 @@ export default async function globalSetup() {
   process.env.DATABASE_URL = testUrl;
   process.env.NODE_ENV = 'test';
   process.env.LOG_LEVEL = 'error';
+  // No webhook secret in tests so the Mock WhatsApp provider accepts any request.
+  // Set BEFORE dotenv loads — dotenv's default (override: false) leaves our empty value in place.
+  process.env.WHATSAPP_WEBHOOK_SECRET = '';
 
   const apiRoot = path.resolve(__dirname, '..');
   execSync('npx prisma migrate deploy', {

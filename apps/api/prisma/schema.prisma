@@ -129,6 +129,14 @@ enum AgentStatus {
   disabled
 }
 
+enum UsageEventType {
+  llm_tokens
+  whatsapp_message
+  call_minute
+  voice_session
+  storage
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   name      String
@@ -147,6 +155,7 @@ model Tenant {
   tasks         Task[]
   agents        Agent[]
   agentConfigs  AgentConfig[]
+  usageEvents   UsageEvent[]
 
   @@map("tenants")
 }
@@ -169,6 +178,7 @@ model Office {
   conversations Conversation[]
   tasks         Task[]
   agents        Agent[]
+  usageEvents   UsageEvent[]
 
   @@index([tenantId])
   @@map("offices")
@@ -359,6 +369,27 @@ model Message {
   @@index([conversationId, createdAt])
   @@index([tenantId, createdAt])
   @@map("messages")
+}
+
+model UsageEvent {
+  id            String         @id @default(uuid())
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId      String?
+  office        Office?        @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  agentId       String?
+  conversationId String?
+  type          UsageEventType
+  provider      String? // "groq", "anthropic", "gemini", "twilio", "meta", "360dialog", "mock"
+  quantity      Int            @default(1)
+  costEstimate  Decimal?       @db.Decimal(12, 6)
+  metadata      Json?
+  createdAt     DateTime       @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, provider, createdAt])
+  @@map("usage_events")
 }
 
 model Task {

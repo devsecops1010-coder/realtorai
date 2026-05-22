@@ -20,6 +20,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Conversation',
   'Message',
   'Task',
+  'UsageEvent',
 ]);
 
 const TENANT_SCOPED_OPERATIONS = new Set<string>([
