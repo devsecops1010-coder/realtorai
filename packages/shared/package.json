@@ -1,0 +1,8 @@
+{
+  "name": "@realtorai/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types/utilities shared between api and web (placeholder)",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}
