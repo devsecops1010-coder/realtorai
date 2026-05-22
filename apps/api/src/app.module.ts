@@ -25,6 +25,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AdminModule } from './admin/admin.module';
 import { ExportsModule } from './exports/exports.module';
+import { MarketingModule } from './marketing/marketing.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -100,6 +101,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     OnboardingModule,
     AdminModule,
     ExportsModule,
+    MarketingModule,
     HealthModule,
   ],
   providers: [

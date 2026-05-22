@@ -171,6 +171,36 @@ enum NotificationType {
   followup_due
   daily_summary
   system
+  contact_request
+}
+
+enum ContactRequestStatus {
+  new
+  contacted
+  qualified
+  converted
+  closed
+}
+
+model ContactRequest {
+  id              String               @id @default(uuid())
+  fullName        String
+  officeName      String?
+  phone           String?
+  email           String
+  city            String?
+  message         String?
+  source          String?
+  ipHash          String?
+  status          ContactRequestStatus @default(new)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  handledAt       DateTime?
+  handledByUserId String?
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@map("contact_requests")
 }
 
 model Tenant {
