@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell, Building } from 'lucide-react';
+import { Users, ListTodo, MessageSquare, Home, LogOut, Building2, Bell, Building, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { clearAuth, getCurrentUser } from '@/lib/auth';
@@ -19,6 +19,8 @@ const navItems = [
   { href: '/notifications', label: 'התראות', icon: Bell, badge: true as const },
   { href: '/office', label: 'המשרד שלי', icon: Building2 },
 ];
+
+const adminNavItem = { href: '/admin', label: 'אדמין פלטפורמה', icon: Shield };
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -86,6 +88,23 @@ export function Sidebar() {
             </Link>
           );
         })}
+        {user?.role === 'platform_admin' && (() => {
+          const active = pathname === adminNavItem.href || pathname.startsWith(adminNavItem.href + '/');
+          const Icon = adminNavItem.icon;
+          return (
+            <Link
+              key={adminNavItem.href}
+              href={adminNavItem.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors mt-4 border-t pt-4',
+                active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {adminNavItem.label}
+            </Link>
+          );
+        })()}
       </nav>
       <div className="p-4 border-t">
         <Button variant="outline" className="w-full" onClick={logout}>

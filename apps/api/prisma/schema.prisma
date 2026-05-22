@@ -178,6 +178,15 @@ model Tenant {
   name      String
   status    TenantStatus @default(trial)
   plan      String       @default("starter")
+  // Billing (per spec section 21) — all in ILS agorot or count.
+  setupFeeIls           Int     @default(0)
+  monthlyPlanIls        Int     @default(0)
+  includedMessages      Int     @default(0)
+  includedCallMinutes   Int     @default(0)
+  extraMessageIls       Decimal @default(0) @db.Decimal(8, 2)
+  extraCallMinuteIls    Decimal @default(0) @db.Decimal(8, 2)
+  successFeePct         Decimal @default(0) @db.Decimal(5, 2)
+  billingNotes          String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 

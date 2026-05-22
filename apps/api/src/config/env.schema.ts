@@ -43,6 +43,10 @@ export const envSchema = z.object({
   // 360dialog
   DIALOG360_API_KEY: z.string().optional(),
   DIALOG360_BASE_URL: z.string().optional(),
+
+  // Monitoring (optional)
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

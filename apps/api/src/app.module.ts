@@ -22,6 +22,9 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { AdminModule } from './admin/admin.module';
+import { ExportsModule } from './exports/exports.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -94,6 +97,9 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     WebhooksModule,
     ReportsModule,
     SchedulerModule,
+    OnboardingModule,
+    AdminModule,
+    ExportsModule,
     HealthModule,
   ],
   providers: [

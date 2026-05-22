@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "billingNotes" TEXT,
+ADD COLUMN     "extraCallMinuteIls" DECIMAL(8,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "extraMessageIls" DECIMAL(8,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "includedCallMinutes" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "includedMessages" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "monthlyPlanIls" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "setupFeeIls" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "successFeePct" DECIMAL(5,2) NOT NULL DEFAULT 0;
