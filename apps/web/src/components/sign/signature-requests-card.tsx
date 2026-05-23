@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileSignature, Plus, Upload, ArrowLeft, CheckCircle2, Clock, AlertCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, apiUrl, ApiError } from '@/lib/api';
+import { api, apiUrl, ApiError, csrfHeaders } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,11 +117,12 @@ export function SignatureRequestsCard({
       if (leadId) fd.append('leadId', leadId);
       if (propertyId) fd.append('propertyId', propertyId);
 
-      const csrf = document.cookie.match(/rai_csrf=([^;]+)/)?.[1];
       const uploadRes = await fetch(`${apiUrl}/sign/documents/upload`, {
         method: 'POST',
         credentials: 'include',
-        headers: csrf ? { 'X-CSRF-Token': decodeURIComponent(csrf) } : undefined,
+        // Multipart upload — we can't use api() (which forces JSON), so we
+        // attach the CSRF header manually via the shared helper.
+        headers: csrfHeaders(),
         body: fd,
       });
       if (!uploadRes.ok) {

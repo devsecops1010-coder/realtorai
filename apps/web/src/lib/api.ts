@@ -25,10 +25,24 @@ interface RequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
 // request. We copy it into the X-CSRF-Token header on state-changing
 // requests. Reading is constrained to document.cookie since the cookie has
 // no HttpOnly flag specifically so we can do this.
-function readCsrfCookie(): string | null {
+export function readCsrfCookie(): string | null {
   if (typeof document === 'undefined') return null;
   const m = document.cookie.match(/(?:^|;\s*)rai_csrf=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : null;
+}
+
+/**
+ * Returns headers needed to authenticate a `fetch()` call against the API.
+ * The api() helper does this automatically; raw fetch() callers (typically
+ * multipart uploads where api() doesn't fit) should spread this into their
+ * own headers map.
+ *
+ * Cookies (rai_access/rai_refresh) ride along separately via
+ * `credentials: 'include'` — they're not in this object.
+ */
+export function csrfHeaders(): Record<string, string> {
+  const token = readCsrfCookie();
+  return token ? { 'X-CSRF-Token': token } : {};
 }
 
 async function rawRequest(path: string, opts: RequestOptions = {}): Promise<Response> {
