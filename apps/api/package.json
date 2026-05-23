@@ -20,6 +20,7 @@
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:catalogs": "tsx prisma/seed-catalogs.ts",
+    "db:seed:demo-network": "tsx prisma/seed-demo-network.ts",
     "db:migrate:areas": "tsx prisma/migrate-areas-to-catalog.ts"
   },
   "dependencies": {
