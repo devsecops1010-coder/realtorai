@@ -169,32 +169,43 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           </Card>
         </div>
 
+        {/* Inline PDF preview — defaults to the signed copy when it exists so
+            the user immediately sees the final document, with a toggle back
+            to the original for verification. The preview is the primary
+            interaction; download is a small secondary action below. */}
+        <PdfPreview
+          documentId={doc.id}
+          hasSignedVersion={Boolean(doc.signedDocumentHash)}
+        />
+
         <div className="flex flex-wrap items-center gap-2">
-          <a href={`${apiUrl}/sign/documents/${doc.id}/download`} target="_blank" rel="noreferrer"
-             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border bg-white hover:bg-muted text-sm">
-            <Download className="h-4 w-4" /> מסמך מקורי
-          </a>
-          {doc.signedDocumentHash && (
-            <a href={`${apiUrl}/sign/documents/${doc.id}/download-signed`} target="_blank" rel="noreferrer"
-               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 text-sm">
-              <Download className="h-4 w-4" /> מסמך חתום
-            </a>
-          )}
           {doc.signatureRequest && doc.status !== 'signed' && doc.status !== 'cancelled' && (
             <button onClick={cancel} disabled={cancelling}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/5 text-sm disabled:opacity-50">
               <X className="h-4 w-4" /> בטל בקשת חתימה
             </button>
           )}
+          {/* Download links kept as tertiary text actions — needed for
+              archival / legal trail but no longer the primary CTAs. */}
+          <a
+            href={`${apiUrl}/sign/documents/${doc.id}/download`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+          >
+            <Download className="h-3.5 w-3.5" /> הורד עותק מקורי
+          </a>
+          {doc.signedDocumentHash && (
+            <a
+              href={`${apiUrl}/sign/documents/${doc.id}/download-signed`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              <Download className="h-3.5 w-3.5" /> הורד עותק חתום
+            </a>
+          )}
         </div>
-
-        {/* Inline PDF preview — defaults to the signed copy when it exists so
-            the user immediately sees the final document, with a toggle back
-            to the original for verification. */}
-        <PdfPreview
-          documentId={doc.id}
-          hasSignedVersion={Boolean(doc.signedDocumentHash)}
-        />
 
         <div className="bg-white border rounded-2xl">
           <div className="p-4 border-b flex items-center gap-2">
