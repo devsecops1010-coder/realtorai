@@ -99,6 +99,10 @@ export class AuthController {
   }
 
   @Public()
+  // Tighter than other public endpoints — registering a tenant creates DB
+  // rows that we can't easily roll back, so abuse (spam tenants) is
+  // expensive. 3 per minute per IP is plenty for legit signups.
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('register-tenant')
   @HttpCode(HttpStatus.CREATED)
   @Audit('tenant.create', { targetType: 'tenant' })
@@ -114,7 +118,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Audit('auth.login', { targetType: 'user' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.login(dto.email, dto.password);
+    const result = await this.auth.login(dto.email, dto.password, dto.totpCode);
+    // 2FA gate — first call returned a `requires2fa` sentinel, no tokens.
+    // Client should now show the TOTP input and re-POST with the same
+    // email/password + the 6-digit code.
+    if ('requires2fa' in result) {
+      return result;
+    }
     this.setAuthCookies(res, result.tokens);
     return result;
   }

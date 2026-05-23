@@ -35,11 +35,14 @@ export class OnboardingService {
 
     try {
       return await this.prisma.unscoped().$transaction(async (tx) => {
+        const trialDays = Number(process.env.TRIAL_LENGTH_DAYS ?? '14');
+        const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
         const tenant = await tx.tenant.create({
           data: {
             name: dto.tenantName.trim(),
             status: TenantStatus.trial,
             plan: 'starter',
+            trialEndsAt,
           },
         });
 

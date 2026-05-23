@@ -276,6 +276,10 @@ model Tenant {
   suspendedAt         DateTime?
   suspendedReason     String?
   suspendedByUserId   String?
+  // Trial deadline. When status='trial' AND now() > trialEndsAt, the daily
+  // TenantLifecycleScheduler auto-suspends. NULL means "no deadline" (used
+  // for platform tenant + customers we manually opt out of expiry).
+  trialEndsAt         DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
@@ -505,6 +509,13 @@ model User {
   status       UserStatus @default(invited)
   passwordHash String?
   lastLoginAt  DateTime?
+  // TOTP-based 2FA. Enabled when totpSecret is non-null AND totpEnabledAt
+  // is set. The secret is stored as base32 (otplib default). We don't
+  // encrypt it at rest yet — column-level encryption is a Phase 2 task.
+  // Recovery codes (hashed) live separately in totpRecoveryCodes JSON.
+  totpSecret         String?
+  totpEnabledAt      DateTime?
+  totpRecoveryCodes  Json? // string[] of bcrypt hashes; nullable until enrolled
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

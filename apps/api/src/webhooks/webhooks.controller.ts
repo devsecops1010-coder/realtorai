@@ -11,6 +11,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { Request, Response } from 'express';
@@ -55,6 +56,10 @@ export class WebhooksController {
    * in Sprint 4).
    */
   @Public()
+  // Generous per-IP limit — real WhatsApp providers (Meta, Twilio) come
+  // from a small range of IPs and can burst hard during campaign sends.
+  // 120/min is enough headroom while still rejecting obvious abuse.
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Post('whatsapp')
   @HttpCode(HttpStatus.OK)
   async whatsappWebhook(
@@ -129,6 +134,9 @@ export class WebhooksController {
    * Auth via shared secret header `x-realtorai-form-secret` matching env.
    */
   @Public()
+  // Tighter than the WhatsApp webhook — form leads come one at a time from
+  // landing pages, so 30/min is plenty. Anything higher smells like a bot.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('forms')
   @HttpCode(HttpStatus.CREATED)
   async formWebhook(@Body() body: any, @Headers() headers: Record<string, string | string[] | undefined>) {

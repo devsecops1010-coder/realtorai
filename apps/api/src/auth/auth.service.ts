@@ -46,11 +46,17 @@ export class AuthService {
 
     try {
       const result = await this.prisma.unscoped().$transaction(async (tx) => {
+        // 14-day trial by default; auto-suspended by TenantLifecycleService
+        // when this date passes. Override via TRIAL_LENGTH_DAYS env var if
+        // we ever want longer/shorter trials for promo periods.
+        const trialDays = Number(process.env.TRIAL_LENGTH_DAYS ?? '14');
+        const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
         const tenant = await tx.tenant.create({
           data: {
             name: dto.tenantName.trim(),
             status: TenantStatus.trial,
             plan: 'starter',
+            trialEndsAt,
           },
         });
 
@@ -91,7 +97,14 @@ export class AuthService {
     }
   }
 
-  async login(email: string, password: string): Promise<{ user: AuthenticatedUser; tokens: AuthTokens }> {
+  async login(
+    email: string,
+    password: string,
+    totpCode?: string,
+  ): Promise<
+    | { user: AuthenticatedUser; tokens: AuthTokens }
+    | { requires2fa: true; userId: string }
+  > {
     const emailLc = email.toLowerCase().trim();
     const user = await this.prisma.unscoped().user.findFirst({
       where: { email: emailLc, status: UserStatus.active },
@@ -106,6 +119,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // 2FA: if enabled on this account, password alone isn't enough. We
+    // return a sentinel { requires2fa: true } so the client knows to show
+    // the TOTP input — same endpoint, second call with the code completes
+    // the login. We don't issue tokens here.
+    if (user.totpEnabledAt) {
+      if (!totpCode) {
+        return { requires2fa: true, userId: user.id };
+      }
+      const verified = await this.verifyTotpCode(user.id, totpCode);
+      if (!verified) {
+        throw new UnauthorizedException('Invalid 2FA code');
+      }
+    }
+
     await this.prisma.unscoped().user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -116,6 +143,44 @@ export class AuthService {
       user: this.toAuthenticatedUser(user),
       tokens,
     };
+  }
+
+  /**
+   * Verify either a 6-digit TOTP code or an 11-char recovery code. Inlined
+   * here (rather than calling TotpService) to keep auth.service free of
+   * circular deps with TotpService — and the verification logic itself
+   * is small enough that duplication is fine.
+   */
+  private async verifyTotpCode(userId: string, code: string): Promise<boolean> {
+    // Lazy import to avoid pulling otplib into the bundle if 2FA isn't used.
+    const { authenticator } = await import('otplib');
+    const bcrypt = await import('bcrypt');
+    authenticator.options = { window: 1, digits: 6, step: 30 };
+
+    const user = await this.prisma.unscoped().user.findUnique({
+      where: { id: userId },
+      select: { totpSecret: true, totpRecoveryCodes: true },
+    });
+    if (!user?.totpSecret) return false;
+
+    // 6-digit → TOTP path
+    if (/^\d{6}$/.test(code)) {
+      return authenticator.check(code, user.totpSecret);
+    }
+
+    // Recovery code path — bcrypt compare against each hash, consume on match
+    const hashes = (user.totpRecoveryCodes ?? []) as string[];
+    for (let i = 0; i < hashes.length; i++) {
+      if (await bcrypt.compare(code.toUpperCase(), hashes[i])) {
+        const remaining = [...hashes.slice(0, i), ...hashes.slice(i + 1)];
+        await this.prisma.unscoped().user.update({
+          where: { id: userId },
+          data: { totpRecoveryCodes: remaining },
+        });
+        return true;
+      }
+    }
+    return false;
   }
 
   async refresh(rawRefreshToken: string): Promise<AuthTokens> {
