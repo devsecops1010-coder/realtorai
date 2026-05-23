@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
+import { Banknote } from 'lucide-react';
 import { MarketingNav } from '@/components/marketing/nav';
 import { Footer } from '@/components/marketing/footer';
 import { TaxCalculator } from '@/components/tools/tax-calculator';
@@ -29,6 +31,14 @@ export default function TaxCalculatorPage() {
           </p>
         </header>
         <TaxCalculator />
+
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          רוצה לחשב גם את ההחזר החודשי?{' '}
+          <Link href="/tools/mortgage-calculator" className="text-primary hover:underline">
+            <Banknote className="h-3.5 w-3.5 inline-block ml-1" />
+            מחשבון משכנתא
+          </Link>
+        </div>
       </main>
       <Footer />
     </>
