@@ -50,3 +50,11 @@ infra/data/
 
 # Generated docs
 docs/_build/
+
+# Runtime user uploads — never committed
+apps/api/storage/sign/documents/
+apps/api/storage/sign/signatures/
+apps/api/storage/sign/signed/
+
+# Local env backups
+apps/web/.env.local.bak-*

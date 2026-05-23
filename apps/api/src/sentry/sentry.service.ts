@@ -19,9 +19,19 @@ export class SentryService implements OnApplicationBootstrap {
     const env = this.config.get('SENTRY_ENVIRONMENT', { infer: true }) ??
       this.config.get('NODE_ENV', { infer: true });
 
+    // Release version: prefer SENTRY_RELEASE (set by CI), then a generic
+     // RELEASE / GIT_SHA, then fall back to the package version. Untagged
+     // releases are still better than 'unknown' for grouping errors.
+    const release =
+      process.env.SENTRY_RELEASE ??
+      process.env.RELEASE ??
+      process.env.GIT_SHA ??
+      `realtorai@${process.env.npm_package_version ?? 'dev'}`;
+
     Sentry.init({
       dsn,
       environment: env,
+      release,
       tracesSampleRate: env === 'production' ? 0.1 : 1.0,
       // Strip common PII before sending
       beforeSend(event) {
@@ -41,7 +51,7 @@ export class SentryService implements OnApplicationBootstrap {
     });
 
     this.initialized = true;
-    this.logger.log(`Sentry initialized: environment=${env}`);
+    this.logger.log(`Sentry initialized: environment=${env} release=${release}`);
   }
 
   captureException(error: unknown, hint?: Record<string, unknown>) {

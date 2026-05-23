@@ -28,13 +28,14 @@ export function MarketingNav() {
     >
       <div className="container mx-auto flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 font-bold text-lg">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-fuchsia-500 grid place-items-center shadow-soft">
+          <div className="h-8 w-8 rounded-lg bg-primary grid place-items-center shadow-soft">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           Realtorai
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
+          <NavLink href="/#marketplace">חיפוש נכסים</NavLink>
           <NavLink href="#features">יכולות</NavLink>
           <NavLink href="#how">איך זה עובד</NavLink>
           <NavLink href="/pricing">מחירים</NavLink>
@@ -53,7 +54,7 @@ export function MarketingNav() {
                 <Link href="/login">התחבר</Link>
               </Button>
               <Button asChild className="btn-shine shadow-glow">
-                <Link href="/register">התחל חינם ←</Link>
+                <Link href="/#marketplace">חפש נכס ←</Link>
               </Button>
             </>
           )}

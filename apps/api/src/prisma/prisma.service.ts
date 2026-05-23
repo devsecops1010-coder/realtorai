@@ -62,4 +62,30 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   withUnscoped<T>(fn: (client: PrismaClient) => Promise<T>): Promise<T> {
     return RequestContext.runUnscoped(() => fn(this));
   }
+
+  /**
+   * Belt-and-suspenders helper for code that intentionally crosses tenant
+   * boundaries (platform_admin endpoints, system tasks). Runtime-asserts
+   * the caller is a platform role before handing out the unscoped client.
+   *
+   * The HTTP route should ALREADY be protected by `@Roles(platform_admin)`
+   * or `@RequirePermission('see.system')`. This is the second line — if
+   * those guards are ever forgotten on a new endpoint, calling
+   * `prisma.adminQuery()` from the service will throw rather than
+   * silently exfiltrate cross-tenant data.
+   *
+   * Passing { systemTask: true } bypasses the role check — for cron jobs,
+   * queue workers, and migrations where there's no user context.
+   */
+  adminQuery(opts: { systemTask?: boolean } = {}): PrismaClient {
+    if (!opts.systemTask) {
+      const role = RequestContext.getRole();
+      if (role !== 'platform_admin' && role !== 'platform_owner') {
+        throw new Error(
+          `prisma.adminQuery() called by role=${role ?? 'none'} — only platform_admin / platform_owner are allowed without { systemTask: true }`,
+        );
+      }
+    }
+    return this;
+  }
 }

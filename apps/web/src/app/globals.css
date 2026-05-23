@@ -4,7 +4,6 @@
 
 @layer base {
   :root {
-    /* Modern Tech palette — deep indigo primary with refined neutrals */
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -12,7 +11,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 244 75% 57%;            /* indigo-600 ish */
+    --primary: 171 68% 32%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -21,44 +20,43 @@
     --muted: 220 14% 96%;
     --muted-foreground: 220 9% 46%;
 
-    --accent: 244 100% 97%;            /* very soft indigo */
-    --accent-foreground: 244 75% 35%;
+    --accent: 38 92% 95%;
+    --accent-foreground: 30 70% 28%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 244 75% 57%;
+    --ring: 171 68% 32%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Brand gradient stops */
-    --grad-from: 244 75% 57%;          /* indigo */
-    --grad-via: 256 75% 60%;            /* violet */
-    --grad-to: 280 90% 60%;             /* fuchsia */
+    --grad-from: 171 68% 32%;
+    --grad-via: 199 89% 48%;
+    --grad-to: 38 92% 50%;
   }
 
   .dark {
-    --background: 224 71% 4%;
+    --background: 180 25% 7%;
     --foreground: 213 31% 91%;
     --card: 224 71% 4%;
     --card-foreground: 213 31% 91%;
     --popover: 224 71% 4%;
     --popover-foreground: 215 20% 65%;
-    --primary: 244 80% 65%;
+    --primary: 170 74% 42%;
     --primary-foreground: 222 47% 11%;
     --secondary: 222 47% 11%;
     --secondary-foreground: 213 31% 91%;
     --muted: 223 47% 11%;
     --muted-foreground: 215 20% 65%;
-    --accent: 216 34% 17%;
+    --accent: 39 48% 18%;
     --accent-foreground: 213 31% 91%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 213 31% 91%;
     --border: 216 34% 17%;
     --input: 216 34% 17%;
-    --ring: 244 80% 65%;
+    --ring: 170 74% 42%;
   }
 }
 
@@ -76,7 +74,7 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   h1, h2, h3, h4 {
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 }
 
@@ -92,18 +90,17 @@
     );
   }
 
-  /* Mesh gradient backgrounds (Stripe/Linear style) */
   .bg-mesh {
     background:
-      radial-gradient(at 20% 0%, hsl(var(--grad-from) / 0.15) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsl(var(--grad-to) / 0.10) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsl(var(--grad-via) / 0.10) 0px, transparent 50%);
+      linear-gradient(135deg, hsl(var(--grad-from) / 0.08), transparent 35%),
+      linear-gradient(315deg, hsl(var(--grad-to) / 0.10), transparent 40%),
+      hsl(var(--background));
   }
   .bg-mesh-strong {
     background:
-      radial-gradient(at 25% 25%, hsl(var(--grad-from) / 0.25) 0px, transparent 50%),
-      radial-gradient(at 75% 25%, hsl(var(--grad-to) / 0.20) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsl(var(--grad-via) / 0.18) 0px, transparent 50%);
+      linear-gradient(135deg, hsl(var(--grad-from) / 0.14), transparent 38%),
+      linear-gradient(315deg, hsl(var(--grad-to) / 0.14), transparent 42%),
+      hsl(var(--background));
   }
 
   /* Glass card */

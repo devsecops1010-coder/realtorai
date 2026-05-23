@@ -12,7 +12,9 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   const config = app.get(ConfigService<Env, true>);
+  const nodeEnv = config.get('NODE_ENV', { infer: true });
   const port = config.get('PORT', { infer: true });
+  const host = config.get('HOST', { infer: true });
   const corsOriginsRaw = config.get('CORS_ORIGINS', { infer: true });
   const corsOrigins = corsOriginsRaw
     ? corsOriginsRaw.split(',').map((s) => s.trim()).filter(Boolean)
@@ -20,7 +22,7 @@ async function bootstrap() {
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : true,
+    origin: corsOrigins.length > 0 ? corsOrigins : nodeEnv !== 'production',
     credentials: true,
   });
 
@@ -36,9 +38,9 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: false as never });
   app.enableShutdownHooks();
 
-  await app.listen(port, '0.0.0.0');
+  await app.listen(port, host);
   const logger = app.get(Logger);
-  logger.log(`Realtorai API listening on http://localhost:${port}`);
+  logger.log(`Realtorai API listening on http://${host}:${port}`);
 }
 
 bootstrap().catch((err) => {

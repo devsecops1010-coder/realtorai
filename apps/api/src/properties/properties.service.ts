@@ -3,12 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LeadIntent, LeadStatus, Prisma, PropertyStatus } from '@prisma/client';
+import {
+  LeadIntent,
+  LeadStatus,
+  LeadTemperature,
+  Prisma,
+  PropertyDealType,
+  PropertyStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestContext } from '../common/context/request-context';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { BulkUploadOwnersDto, OwnerLeadInputDto } from './dto/bulk-upload.dto';
+import { CreatePublicPropertyLeadDto } from './dto/create-public-property-lead.dto';
+import { PublicPropertySearchQuery } from './dto/public-property-search.query';
 
 @Injectable()
 export class PropertiesService {
@@ -37,6 +46,131 @@ export class PropertiesService {
     return property;
   }
 
+  async publicSearch(query: PublicPropertySearchQuery) {
+    const take = query.take ?? 24;
+    const skip = query.skip ?? 0;
+    const where: Prisma.PropertyWhereInput = {
+      status: PropertyStatus.active,
+    };
+
+    if (query.dealType) where.dealType = query.dealType;
+    if (query.city) where.city = { contains: query.city.trim(), mode: 'insensitive' };
+    if (query.area) where.area = { contains: query.area.trim(), mode: 'insensitive' };
+    if (query.minRooms !== undefined) where.rooms = { gte: query.minRooms };
+    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+      where.price = {
+        ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
+        ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
+      };
+    }
+    if (query.q) {
+      const q = query.q.trim();
+      where.OR = [
+        { city: { contains: q, mode: 'insensitive' } },
+        { area: { contains: q, mode: 'insensitive' } },
+        { street: { contains: q, mode: 'insensitive' } },
+        { notes: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.unscoped().property.findMany({
+        where,
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        take,
+        skip,
+        select: {
+          id: true,
+          dealType: true,
+          city: true,
+          area: true,
+          street: true,
+          rooms: true,
+          floor: true,
+          price: true,
+          condition: true,
+          coverImageUrl: true,
+          galleryUrls: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
+          office: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              phone: true,
+              whatsappNumber: true,
+            },
+          },
+        },
+      }),
+      this.prisma.unscoped().property.count({ where }),
+    ]);
+
+    return { items, total, take, skip };
+  }
+
+  async createPublicLead(propertyId: string, dto: CreatePublicPropertyLeadDto) {
+    if (!dto.phone && !dto.email) {
+      throw new BadRequestException('Phone or email is required');
+    }
+
+    const property = await this.prisma.unscoped().property.findFirst({
+      where: { id: propertyId, status: PropertyStatus.active },
+      select: {
+        id: true,
+        tenantId: true,
+        officeId: true,
+        dealType: true,
+        city: true,
+        area: true,
+        street: true,
+        rooms: true,
+        price: true,
+      },
+    });
+    if (!property) throw new NotFoundException('Public property not found');
+
+    const notes = [
+      'Public marketplace inquiry',
+      property.street ? `Property street: ${property.street}` : null,
+      property.city ? `City: ${property.city}` : null,
+      property.area ? `Area: ${property.area}` : null,
+      property.rooms ? `Rooms: ${property.rooms}` : null,
+      property.price ? `Price: ${property.price}` : null,
+      dto.message ? `Message: ${dto.message.trim()}` : null,
+    ].filter(Boolean).join('\n');
+
+    const lead = await this.prisma.unscoped().lead.create({
+      data: {
+        tenantId: property.tenantId,
+        officeId: property.officeId,
+        source: 'marketplace_property',
+        fullName: dto.fullName.trim(),
+        phone: dto.phone?.trim() ?? null,
+        email: dto.email?.toLowerCase().trim() ?? null,
+        intent: property.dealType === PropertyDealType.sale ? LeadIntent.buy : LeadIntent.rent,
+        city: property.city,
+        area: property.area,
+        budgetMax: property.price,
+        rooms: property.rooms,
+        status: LeadStatus.new,
+        temperature: LeadTemperature.warm,
+        notes,
+      },
+      select: {
+        id: true,
+        status: true,
+        temperature: true,
+        createdAt: true,
+      },
+    });
+
+    return { lead };
+  }
+
   async create(dto: CreatePropertyDto) {
     const officeId = await this.resolveOfficeId(dto.officeId);
     if (dto.ownerLeadId) {
@@ -55,6 +189,8 @@ export class PropertiesService {
       floor: dto.floor ?? null,
       price: dto.price ?? null,
       condition: dto.condition ?? null,
+      coverImageUrl: dto.coverImageUrl ?? null,
+      galleryUrls: dto.galleryUrls as Prisma.InputJsonValue | undefined,
       status: dto.status ?? PropertyStatus.draft,
       notes: dto.notes ?? null,
     };
@@ -78,6 +214,8 @@ export class PropertiesService {
     if (dto.floor !== undefined) data.floor = dto.floor;
     if (dto.price !== undefined) data.price = dto.price;
     if (dto.condition !== undefined) data.condition = dto.condition;
+    if (dto.coverImageUrl !== undefined) data.coverImageUrl = dto.coverImageUrl;
+    if (dto.galleryUrls !== undefined) data.galleryUrls = dto.galleryUrls as Prisma.InputJsonValue;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.notes !== undefined) data.notes = dto.notes;
     return this.prisma.scoped.property.update({ where: { id }, data });

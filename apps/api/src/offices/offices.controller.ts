@@ -23,6 +23,11 @@ export class OfficesController {
     return this.offices.getCurrent();
   }
 
+  @Get('current/team-stats')
+  teamStats() {
+    return this.offices.getTeamStats();
+  }
+
   @Patch('current')
   @Roles(UserRole.office_owner, UserRole.office_manager)
   @Audit('office.update', { targetType: 'office' })

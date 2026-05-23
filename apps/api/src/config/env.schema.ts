@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
+  HOST: z.string().default('0.0.0.0'),
   CORS_ORIGINS: z.string().default(''),
 
   DATABASE_URL: z.string().url(),
@@ -47,6 +48,40 @@ export const envSchema = z.object({
   // Monitoring (optional)
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
+}).superRefine((env, ctx) => {
+  if (env.NODE_ENV !== 'production') return;
+
+  if (!env.CORS_ORIGINS.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['CORS_ORIGINS'],
+      message: 'CORS_ORIGINS is required in production',
+    });
+  }
+
+  if (env.JWT_SECRET.length < 64) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['JWT_SECRET'],
+      message: 'JWT_SECRET must be at least 64 characters in production',
+    });
+  }
+
+  if (!env.GROQ_API_KEY && !env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['GROQ_API_KEY'],
+      message: 'At least one real LLM provider key is required in production',
+    });
+  }
+
+  if (env.WHATSAPP_PROVIDER === 'mock') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['WHATSAPP_PROVIDER'],
+      message: 'WHATSAPP_PROVIDER cannot be mock in production',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

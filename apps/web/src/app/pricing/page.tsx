@@ -6,7 +6,7 @@ import { Footer } from '@/components/marketing/footer';
 
 export const metadata = {
   title: 'מחירים | Realtorai',
-  description: 'תוכניות תמחור — Starter, Pro, Network. ללא התחייבות, 30 יום ניסיון.',
+  description: 'תוכניות תמחור למערכת סוכני AI למשרדי תיווך: Starter, Pro, Network.',
 };
 
 export default function PricingPage() {
@@ -16,10 +16,10 @@ export default function PricingPage() {
       <main className="pt-8">
         <div className="container mx-auto px-4 text-center max-w-3xl mb-4">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            כמה זה עולה?
+            תמחור לפי משרד, נפח שימוש ורמת ליווי
           </h1>
           <p className="text-lg text-muted-foreground">
-            תמחור פשוט, ללא הפתעות. ללא התחייבות.
+            מתחילים עם חבילה ברורה, מוסיפים דקות והודעות לפי שימוש, ומודדים רווחיות לכל משרד.
           </p>
         </div>
         <PricingSection heading="" subheading="" />

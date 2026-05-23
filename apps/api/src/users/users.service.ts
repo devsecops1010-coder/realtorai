@@ -3,17 +3,24 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestContext } from '../common/context/request-context';
+import { AuthLifecycleService } from '../auth/auth-lifecycle.service';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lifecycle: AuthLifecycleService,
+  ) {}
 
   list() {
     return this.prisma.scoped.user.findMany({
@@ -75,7 +82,7 @@ export class UsersService {
         status: UserStatus.invited,
         officeId,
       };
-      return await this.prisma.scoped.user.create({
+      const created = await this.prisma.scoped.user.create({
         data: data as Prisma.UserUncheckedCreateInput,
         select: {
           id: true,
@@ -85,8 +92,38 @@ export class UsersService {
           status: true,
           officeId: true,
           createdAt: true,
+          office: { select: { name: true } },
         },
       });
+
+      // Issue activation token + send invitation email. Best-effort — if
+      // email delivery fails the user record is still created and admins
+      // can resend the invite later (TODO: add resend endpoint).
+      try {
+        const inviterId = RequestContext.get().userId;
+        const inviter = inviterId
+          ? await this.prisma.unscoped().user.findUnique({
+              where: { id: inviterId },
+              select: { name: true },
+            })
+          : null;
+        await this.lifecycle.issueActivationForInvite({
+          userId: created.id,
+          recipientEmail: created.email,
+          recipientName: created.name,
+          inviterName: inviter?.name ?? 'מנהל המשרד',
+          officeName: created.office?.name ?? 'המשרד שלך',
+        });
+      } catch (err) {
+        this.logger.error(
+          `Activation email pipeline failed for ${created.email}: ${(err as Error).message}`,
+        );
+      }
+
+      // Strip the `office` relation from the response — callers expected the
+      // pre-existing shape.
+      const { office: _office, ...rest } = created;
+      return rest;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException('Email already in use for this tenant');

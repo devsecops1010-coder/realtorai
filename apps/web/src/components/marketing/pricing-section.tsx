@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, MessageCircle, PhoneCall, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -8,6 +8,7 @@ interface PricingTier {
   description: string;
   setupIls: string;
   monthlyIls: string;
+  scope: string;
   highlight?: boolean;
   features: string[];
   cta: string;
@@ -17,116 +18,146 @@ interface PricingTier {
 const TIERS: PricingTier[] = [
   {
     name: 'Starter',
-    description: 'משרד בודד, מעט לידים בחודש',
+    description: 'משרד קטן שרוצה להציל לידים נכנסים',
     setupIls: '7,500',
     monthlyIls: '4,900',
+    scope: 'סוכן מענה + CRM בסיסי',
     features: [
       'סוכן מענה ללידים',
-      'WhatsApp Business (Twilio Sandbox)',
+      'חיבור WhatsApp Business',
       '500 הודעות בחודש',
       'CRM בסיסי',
-      'תמיכה בצ׳אט',
+      'דוח שבועי לבעל המשרד',
     ],
-    cta: 'התחל ניסיון',
-    ctaHref: '/register',
+    cta: 'קבע דמו',
+    ctaHref: '#contact',
   },
   {
     name: 'Pro',
-    description: 'הנפוץ ביותר — לרוב משרדי התיווך',
+    description: 'החבילה המרכזית למשרד פעיל',
     setupIls: '12,500',
     monthlyIls: '6,900',
+    scope: 'מענה + גיוס דירות + משכנתאות',
     highlight: true,
     features: [
-      'שני הסוכנים (מענה + גיוס דירות)',
+      'שני הסוכנים המרכזיים',
       'WhatsApp עם המספר העסקי שלך',
       '2,000 הודעות בחודש',
       'CRM מלא + נכסים',
+      'מודול משכנתאות והפניה ליועץ',
       'דוחות יומיים אוטומטיים',
       'תמיכה בעדיפות + הקמה אישית',
       'התאמת תסריטים',
     ],
-    cta: 'התחל ניסיון',
-    ctaHref: '/register',
+    cta: 'דבר איתנו',
+    ctaHref: '#contact',
   },
   {
     name: 'Network',
-    description: 'רשתות תיווך עם 3+ סניפים',
+    description: 'רשתות, סניפים וצוותי מכירות',
     setupIls: '15,000+',
     monthlyIls: '8,900+',
+    scope: 'ריבוי משרדים והרשאות הנהלה',
     features: [
       'הכל ב-Pro',
       'משתמשים ללא הגבלה',
       '5,000 הודעות בחודש',
       'דוחות לפי סניף ולמטה',
       'API לאינטגרציות',
+      'הרשאות מתקדמות ו-audit',
       'SLA חתום',
-      'הקמה ב-30 יום + אונבורדינג של כל הצוות',
+      'הקמה ב-30 יום + אונבורדינג צוותים',
     ],
     cta: 'דבר איתנו',
     ctaHref: '#contact',
   },
 ];
 
-export function PricingSection({ heading = 'מחירים', subheading = 'כל מה שנדרש כדי להתחיל. בלי הפתעות.' }: { heading?: string; subheading?: string }) {
+export function PricingSection({
+  heading = 'מחירים',
+  subheading = 'דמי הקמה, תשלום חודשי ושימוש שקוף לפי הודעות או דקות.',
+}: {
+  heading?: string;
+  subheading?: string;
+}) {
   return (
-    <section id="pricing" className="py-20">
+    <section id="pricing" className="py-24">
       <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">{heading}</h2>
-          <p className="text-lg text-muted-foreground">{subheading}</p>
+        <div className="mx-auto mb-12 max-w-3xl text-center">
+          <p className="mb-3 text-sm font-semibold uppercase text-primary">מודל עסקי</p>
+          <h2 className="mb-4 text-3xl font-bold md:text-5xl">{heading}</h2>
+          <p className="text-lg leading-relaxed text-muted-foreground">{subheading}</p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {TIERS.map((t) => (
+
+        <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
+          {TIERS.map((tier) => (
             <div
-              key={t.name}
+              key={tier.name}
               className={
-                t.highlight
-                  ? 'relative rounded-lg border-2 border-primary bg-card p-6 shadow-lg'
-                  : 'rounded-lg border bg-card p-6'
+                tier.highlight
+                  ? 'relative overflow-hidden rounded-lg border-2 border-primary bg-card p-6 shadow-lift'
+                  : 'relative overflow-hidden rounded-lg border bg-card p-6 shadow-soft'
               }
             >
-              {t.highlight && (
-                <Badge className="absolute -top-3 right-1/2 translate-x-1/2 inline-flex items-center gap-1">
+              {tier.highlight ? (
+                <Badge className="absolute left-5 top-5 inline-flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
                   הכי נפוץ
                 </Badge>
-              )}
-              <h3 className="text-2xl font-bold mb-1">{t.name}</h3>
-              <p className="text-sm text-muted-foreground mb-6">{t.description}</p>
+              ) : null}
 
-              <div className="mb-4">
-                <div className="text-sm text-muted-foreground">דמי הקמה חד-פעמיים</div>
-                <div className="text-xl font-semibold" dir="ltr">
-                  ₪{t.setupIls}
-                </div>
-              </div>
               <div className="mb-6">
-                <div className="text-sm text-muted-foreground">תשלום חודשי</div>
-                <div className="text-4xl font-bold" dir="ltr">
-                  ₪{t.monthlyIls}
-                  <span className="text-base font-normal text-muted-foreground"> / חודש</span>
+                <h3 className="text-2xl font-bold">{tier.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{tier.description}</p>
+                <div className="mt-4 rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+                  {tier.scope}
                 </div>
               </div>
 
-              <Button asChild className="w-full mb-6" variant={t.highlight ? 'default' : 'outline'}>
-                <Link href={t.ctaHref}>{t.cta}</Link>
+              <div className="grid grid-cols-2 gap-3">
+                <PriceBox label="הקמה" value={tier.setupIls} />
+                <PriceBox label="חודשי" value={tier.monthlyIls} suffix="/חודש" />
+              </div>
+
+              <Button asChild className="mt-6 w-full" variant={tier.highlight ? 'default' : 'outline'}>
+                <Link href={tier.ctaHref}>{tier.cta}</Link>
               </Button>
 
-              <ul className="space-y-2">
-                {t.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm">
-                    <Check className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                    <span>{f}</span>
+              <ul className="mt-6 space-y-2.5">
+                {tier.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-sm leading-6">
+                    <Check className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-500" />
+                    <span>{feature}</span>
                   </li>
                 ))}
               </ul>
             </div>
           ))}
         </div>
-        <p className="text-center text-sm text-muted-foreground mt-8">
-          חריגה מההיקף החודשי: ₪0.30/הודעה, ₪1.80/דקת שיחה. ללא התחייבות, הפסקה בכל עת.
-        </p>
+
+        <div className="mx-auto mt-8 grid max-w-4xl gap-3 rounded-lg border bg-muted/35 p-4 text-sm text-muted-foreground md:grid-cols-2">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-primary" />
+            חריגה מההיקף החודשי: ₪0.30 להודעה
+          </div>
+          <div className="flex items-center gap-2">
+            <PhoneCall className="h-4 w-4 text-primary" />
+            שיחות קוליות: ₪1.80 לדקת שיחה, לפי שימוש
+          </div>
+        </div>
       </div>
     </section>
+  );
+}
+
+function PriceBox({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-bold" dir="ltr">
+        ₪{value}
+      </div>
+      {suffix ? <div className="text-xs text-muted-foreground">{suffix}</div> : null}
+    </div>
   );
 }

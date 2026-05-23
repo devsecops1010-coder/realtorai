@@ -32,7 +32,13 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (err) {
       const e = err as ApiError;
-      setError(e.status === 401 ? 'אימייל או סיסמה לא נכונים' : e.message);
+      if (e.status === 401) {
+        setError('אימייל או סיסמה לא נכונים');
+      } else if (e.status === 404) {
+        setError('שירות ההתחברות לא זמין כרגע. נסה שוב בעוד רגע');
+      } else {
+        setError(e.message || 'לא הצלחנו להתחבר כרגע. נסה שוב בעוד רגע');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +98,9 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>
+              <p className="max-h-24 overflow-auto break-words rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
             )}
             <Button type="submit" disabled={loading} className="w-full h-11 btn-shine" size="lg">
               {loading ? 'מתחבר...' : 'התחבר'}

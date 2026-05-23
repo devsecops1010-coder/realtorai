@@ -1,63 +1,84 @@
-import { MessageSquare, Bot, Bell, BarChart3 } from 'lucide-react';
+import { BarChart3, Bell, Bot, MessageSquare, Percent, PlugZap } from 'lucide-react';
 
 const STEPS = [
   {
     n: '01',
-    icon: MessageSquare,
-    title: 'מחברים את WhatsApp',
-    body: 'תוך 15 דקות. תמיכה ב-Twilio, Meta Cloud ו-360dialog. המספר הקיים שלך — בלי לעבור.',
+    icon: PlugZap,
+    title: 'מחברים מקורות',
+    body: 'WhatsApp, טפסים, העלאות ידניות ורשימות קיימות נכנסים למשרד אחד מסודר.',
+    output: 'מקור + סטטוס',
   },
   {
     n: '02',
     icon: Bot,
-    title: 'שני סוכני AI עולים',
-    body: 'מענה ללידים נכנסים + גיוס דירות מבעלי נכסים. עברית טבעית, טון של המשרד שלך.',
+    title: 'הסוכן מסנן',
+    body: 'הוא שואל שאלות קצרות, שומר תשובות ומבין אם צריך אדם.',
+    output: 'כרטיס ליד',
   },
   {
     n: '03',
-    icon: Bell,
-    title: 'התראות רק על חמים',
-    body: 'הסוכן מסנן, מקבל פרטים (תקציב, אזור, חדרים), ומעביר אליך רק לידים אמיתיים.',
+    icon: Percent,
+    title: 'בודקים בשלות',
+    body: 'תקציב, אזור, חדרים, לוח זמנים ואישור משכנתא נכנסים לתמונה.',
+    output: 'ציון חום',
   },
   {
     n: '04',
+    icon: Bell,
+    title: 'מעבירים לאדם',
+    body: 'מתווך מקבל סיכום קצר ומשימה רק כשיש סיבה אמיתית להיכנס.',
+    output: 'משימה',
+  },
+  {
+    n: '05',
     icon: BarChart3,
-    title: 'הCRM מתעדכן לבד',
-    body: 'כל שיחה, כל פרט, כל סטטוס — נכנס אוטומטית. אתה רק עוקב מהדשבורד.',
+    title: 'מודדים תוצאה',
+    body: 'בעל המשרד רואה לידים שטופלו, פגישות, נכסים, שימוש ועלות.',
+    output: 'ROI',
   },
 ];
 
 export function HowItWorks() {
   return (
-    <section id="how" className="py-24 bg-muted/30 relative">
+    <section id="how" className="relative bg-muted/30 py-24">
       <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto text-center mb-16">
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">הפתרון</p>
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-            איך זה עובד
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            4 שלבים, התקנה תוך יום, החזר השקעה תוך שבועיים.
+        <div className="mx-auto mb-14 max-w-3xl text-center">
+          <p className="mb-3 text-sm font-semibold uppercase text-primary">הפתרון</p>
+          <h2 className="mb-5 text-4xl font-bold md:text-5xl">איך זה עובד במשרד אמיתי</h2>
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            תהליך קצר שמתחיל במשרד אחד, מייצר מספרים, ואז משוכפל למשרדים נוספים.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
-          {STEPS.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.n}
-                className="group relative rounded-2xl border bg-card p-6 shadow-soft hover:shadow-lift transition-all"
-              >
-                <div className="text-5xl font-bold text-gradient mb-2 opacity-80">{s.n}</div>
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-fuchsia-500/10 mb-4">
-                  <Icon className="h-5 w-5 text-primary" />
+        <div className="mx-auto max-w-7xl rounded-lg border bg-background p-4 shadow-soft md:p-6">
+          <div className="grid gap-4 lg:grid-cols-5">
+            {STEPS.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <div key={step.n} className="relative rounded-lg border bg-card p-5">
+                  {index < STEPS.length - 1 ? (
+                    <div className="absolute left-[-1rem] top-9 hidden h-px w-8 bg-border lg:block" />
+                  ) : null}
+                  <div className="mb-5 flex items-center justify-between">
+                    <span className="text-3xl font-bold text-gradient">{step.n}</span>
+                    <div className="grid h-10 w-10 place-items-center rounded-md bg-primary/10">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                  </div>
+                  <h3 className="mb-2 font-semibold">{step.title}</h3>
+                  <p className="min-h-[5.25rem] text-sm leading-7 text-muted-foreground">{step.body}</p>
+                  <div className="mt-4 rounded-md border bg-muted/45 px-3 py-2 text-sm font-medium">
+                    {step.output}
+                  </div>
                 </div>
-                <h3 className="font-semibold text-lg mb-2">{s.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{s.body}</p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <MessageSquare className="h-4 w-4 text-primary" />
+            כל שלב מתועד, נמדד ומופיע באזור האישי לפי התפקיד של המשתמש.
+          </div>
         </div>
       </div>
     </section>

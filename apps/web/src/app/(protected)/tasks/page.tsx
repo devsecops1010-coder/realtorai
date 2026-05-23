@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,9 +10,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDate } from '@/lib/utils';
 import type { Paginated, Task } from '@/lib/types';
 
-export default function TasksPage() {
+function isDueToday(iso: string | null): boolean {
+  if (!iso) return false;
+  const due = new Date(iso);
+  const now = new Date();
+  // Due today OR overdue (any moment from epoch to end-of-today).
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  return due <= endOfToday;
+}
+
+function TasksPageInner() {
+  const search = useSearchParams();
+  const urlStatus = search.get('status');
+  const dueFilter = search.get('due'); // 'today' = due ≤ end-of-today
+
+  const initialFilter: 'open' | 'all' | 'mine' =
+    urlStatus === 'open' || dueFilter === 'today' ? 'open' : 'open';
+  const [filter, setFilter] = useState<'open' | 'all' | 'mine'>(initialFilter);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [filter, setFilter] = useState<'open' | 'all' | 'mine'>('open');
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -22,7 +39,9 @@ export default function TasksPage() {
       if (filter === 'mine') params.set('mine', 'true');
       params.set('take', '100');
       const res = await api<Paginated<Task>>(`/tasks?${params.toString()}`);
-      setTasks(res.items);
+      // Apply due-today client-side since the API doesn't have a dueBefore filter yet.
+      const items = dueFilter === 'today' ? res.items.filter((t) => isDueToday(t.dueAt)) : res.items;
+      setTasks(items);
     } finally {
       setLoading(false);
     }
@@ -30,7 +49,8 @@ export default function TasksPage() {
 
   useEffect(() => {
     load();
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, dueFilter]);
 
   async function close(taskId: string) {
     await api(`/tasks/${taskId}`, { method: 'PATCH', body: { status: 'done' } });
@@ -39,7 +59,12 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">משימות</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">משימות</h1>
+        {dueFilter === 'today' && (
+          <Badge variant="warning" className="text-sm">דחוף להיום בלבד</Badge>
+        )}
+      </div>
       <div className="flex gap-2">
         <Button variant={filter === 'open' ? 'default' : 'outline'} onClick={() => setFilter('open')}>
           פתוחות
@@ -118,5 +143,13 @@ export default function TasksPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div>טוען...</div>}>
+      <TasksPageInner />
+    </Suspense>
   );
 }

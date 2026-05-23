@@ -95,6 +95,63 @@ describe('Sprint 6: onboarding + admin + exports (e2e)', () => {
     expect(typeof health.body.tenants).toBe('number');
   });
 
+  it('platform_admin can set up a tenant office with active owner and core agents', async () => {
+    const t = await registerTenant(app);
+    await prisma.unscoped().user.update({
+      where: { id: t.ownerId },
+      data: { role: 'platform_admin' },
+    });
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: t.email, password: 'TestPass1!' })
+      .expect(200);
+    const adminToken: string = login.body.tokens.accessToken;
+    const ownerEmail = `office-owner-${Date.now()}@test.co`;
+
+    const setup = await request(app.getHttpServer())
+      .post('/admin/offices/setup')
+      .set(bearer(adminToken))
+      .send({
+        tenantName: 'רימקס בדיקה',
+        tenantStatus: 'active',
+        plan: 'pro',
+        setupFeeIls: 4500,
+        monthlyPlanIls: 2500,
+        includedMessages: 1000,
+        includedCallMinutes: 200,
+        monthlyLlmBudgetUsd: 30,
+        officeName: 'רימקס מרכז',
+        city: 'תל אביב',
+        areas: ['מרכז', 'צפון ישן'],
+        phone: '03-5555555',
+        whatsappNumber: '972501111111',
+        ownerName: 'בעל משרד',
+        ownerEmail,
+        ownerPhone: '0501111111',
+        ownerPassword: 'OfficePass1!',
+      })
+      .expect(201);
+
+    expect(setup.body.tenant.status).toBe('active');
+    expect(setup.body.tenant.monthlyPlanIls).toBe(2500);
+    expect(setup.body.office.areas).toEqual(['מרכז', 'צפון ישן']);
+    expect(setup.body.owner.role).toBe('office_owner');
+    expect(setup.body.owner.status).toBe('active');
+    expect(setup.body.owner.passwordHash).toBeUndefined();
+    expect(setup.body.agents.map((a: { type: string }) => a.type).sort()).toEqual([
+      'lead_responder',
+      'property_recruiter',
+    ]);
+
+    const ownerLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: ownerEmail, password: 'OfficePass1!' })
+      .expect(200);
+    expect(ownerLogin.body.user.tenantId).toBe(setup.body.tenant.id);
+    expect(ownerLogin.body.user.officeId).toBe(setup.body.office.id);
+  });
+
   it('GET /exports/leads.csv returns CSV with BOM and headers', async () => {
     const t = await registerTenant(app);
     await request(app.getHttpServer())

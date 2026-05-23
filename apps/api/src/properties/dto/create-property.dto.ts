@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsInt,
   IsNumber,
@@ -54,6 +56,17 @@ export class CreatePropertyDto {
   @IsOptional()
   @IsEnum(PropertyCondition)
   condition?: PropertyCondition;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  coverImageUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  galleryUrls?: string[];
 
   @IsOptional()
   @IsEnum(PropertyStatus)

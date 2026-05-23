@@ -15,17 +15,21 @@ export class LlmRouterService {
   private readonly logger = new Logger(LlmRouterService.name);
   private readonly providers: Map<string, LlmProvider>;
   private readonly mock = new MockLlmProvider();
+  private readonly allowMock: boolean;
 
   constructor(
     config: ConfigService<Env, true>,
     private readonly usage: UsageEventsService,
   ) {
+    this.allowMock = config.get('NODE_ENV', { infer: true }) !== 'production';
     this.providers = new Map<string, LlmProvider>([
-      ['mock', this.mock],
       ['groq', new GroqProvider(config.get('GROQ_API_KEY', { infer: true }))],
       ['anthropic', new AnthropicProvider(config.get('ANTHROPIC_API_KEY', { infer: true }))],
       ['gemini', new GeminiProvider(config.get('GEMINI_API_KEY', { infer: true }))],
     ]);
+    if (this.allowMock) {
+      this.providers.set('mock', this.mock);
+    }
 
     const available = Array.from(this.providers.values()).filter((p) => p.isAvailable);
     this.logger.log(`LLM providers ready: ${available.map((p) => p.name).join(', ')}`);
@@ -56,14 +60,15 @@ export class LlmRouterService {
 
   /**
    * Routing per spec section 10:
-   * - fast: short replies, classifications → Groq → Gemini → mock
-   * - long: long contexts, summaries → Gemini → Anthropic → mock
-   * - quality: sensitive cases, angry customers → Anthropic → Gemini → mock
+   * - fast: short replies, classifications → Groq → Gemini → mock in non-prod
+   * - long: long contexts, summaries → Gemini → Anthropic → mock in non-prod
+   * - quality: sensitive cases, angry customers → Anthropic → Gemini → mock in non-prod
    */
   private routingOrder(intent: 'fast' | 'long' | 'quality'): string[] {
-    if (intent === 'fast') return ['groq', 'gemini', 'anthropic', 'mock'];
-    if (intent === 'long') return ['gemini', 'anthropic', 'groq', 'mock'];
-    return ['anthropic', 'gemini', 'groq', 'mock'];
+    const withMock = (order: string[]) => (this.allowMock ? [...order, 'mock'] : order);
+    if (intent === 'fast') return withMock(['groq', 'gemini', 'anthropic']);
+    if (intent === 'long') return withMock(['gemini', 'anthropic', 'groq']);
+    return withMock(['anthropic', 'gemini', 'groq']);
   }
 
   private async recordUsage(opts: LlmRouteOptions, provider: LlmProvider, result: LlmChatResult) {
