@@ -606,11 +606,17 @@ model Lead {
   assignedUser   User?           @relation("LeadAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   source         String? // free text: "whatsapp", "form", "manual", "external_X"
   fullName       String?
+  // National ID / Passport — populated lazily when a contract (e.g. bank
+  // authorization letter) needs it. Optional everywhere else.
+  nationalId     String?
   phone          String?
   email          String?
   intent         LeadIntent      @default(unknown)
   city           String?
   area           String?
+  // Street + house number — only used for bank authorization forms today.
+  // Lead-routing logic still uses `city`/`area` instead.
+  streetAddress  String?
   budgetMin      Int?
   budgetMax      Int?
   rooms          Float?
@@ -640,6 +646,13 @@ model MortgageAdvisor {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   fullName  String
+  // Optional — only required when generating bank authorization letters
+  // (each bank's כתב הסמכה form has slots for these). Stored once on the
+  // advisor row so it's auto-filled into every future letter.
+  nationalId        String?
+  licenseNumber     String?  // מספר רישיון יועץ משכנתאות מהאוצר
+  consultingCompany String?  // שם חברת הייעוץ (אופציונלי — חלק מהיועצים עצמאיים)
+  consultingCompanyId String? // ח.פ. של חברת הייעוץ
   company   String?
   phone     String?
   email     String?
@@ -668,6 +681,14 @@ model MortgageProfile {
   preApprovalAmount Int?
   preApprovalBank   String? // free text, no validation
   monthlyIncome     Int? // optional
+
+  // Co-applicant ("לווה 2" in bank forms). Required by every bank auth
+  // template when the mortgage has two borrowers. Kept here (not on Lead)
+  // because the co-applicant is typically a spouse/partner, not a
+  // separate CRM lead.
+  coApplicantName       String?
+  coApplicantNationalId String?
+  coApplicantPhone      String?
 
   // Status and score
   status         MortgageStatus    @default(unknown)
@@ -1031,4 +1052,38 @@ model WebhookDelivery {
   @@index([tenantId, status])
   @@index([nextAttemptAt])
   @@map("webhook_deliveries")
+}
+
+// ---------------------------------------------------------------------------
+// Bank authorization templates — the original PDFs published by each bank
+// for "כתב הסמכה ליועץ משכנתאות חיצוני". We don't modify the source PDFs;
+// instead we render an overlay of values at recorded coordinates on top of
+// the base file when a user generates a new letter.
+//
+// `overlay` is an array of field placements. Each entry says: "at page P,
+// x=X, y=Y, write the value mapped to logical key K". The keys (borrower1_name,
+// advisor_id, …) are stable across banks even though their positions differ.
+//
+// For PDFs that DO carry AcroForm widgets (currently just Discount + maybe
+// Mercantile), we additionally store an `acroFormMap` so we can fill the
+// existing fields by name instead of overlaying text.
+// ---------------------------------------------------------------------------
+
+model BankAuthTemplate {
+  id          String  @id @default(uuid())
+  bankSlug    String  @unique // 'discount' | 'leumi' | 'hapoalim' | ...
+  bankNameHe  String          // 'בנק דיסקונט'
+  bankNameEn  String?
+  pdfPath     String          // path under apps/api/storage/sign/templates/
+  // Layout of the overlay — see SignPdfOverlayService for the shape.
+  // [{ key:'borrower1_name', page:0, x:380, y:720, fontSize:11, maxWidth:200, align:'right' }]
+  overlay     Json    @default("[]")
+  // For AcroForm-aware templates: { 'borrower1_name': 'Text1.0', ... }
+  acroFormMap Json    @default("{}")
+  active      Boolean @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("bank_auth_templates")
 }

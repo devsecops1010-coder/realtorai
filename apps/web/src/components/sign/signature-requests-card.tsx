@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileSignature, Plus, Upload, ArrowLeft, CheckCircle2, Clock, AlertCircle, X } from 'lucide-react';
+import { FileSignature, Plus, Upload, ArrowLeft, CheckCircle2, Clock, AlertCircle, X, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, apiUrl, ApiError, csrfHeaders } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { BankAuthDialog } from './bank-auth-dialog';
 
 interface SignDoc {
   id: string;
@@ -60,6 +61,7 @@ export function SignatureRequestsCard({
   const [docs, setDocs] = useState<SignDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [showBankDialog, setShowBankDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [signerName, setSignerName] = useState(defaultSignerName);
@@ -167,10 +169,20 @@ export function SignatureRequestsCard({
               </Badge>
             )}
           </span>
-          <Button size="sm" variant="outline" onClick={() => setShowDialog(true)}>
-            <Plus className="h-3.5 w-3.5 ml-1.5" />
-            שליחה לחתימה
-          </Button>
+          <div className="flex items-center gap-2">
+            {leadId && (
+              // Bank-template flow only makes sense for a lead (the borrower).
+              // Property-only contexts use the generic upload dialog instead.
+              <Button size="sm" variant="outline" onClick={() => setShowBankDialog(true)}>
+                <Building2 className="h-3.5 w-3.5 ml-1.5" />
+                כתב הסמכה לבנק
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => setShowDialog(true)}>
+              <Plus className="h-3.5 w-3.5 ml-1.5" />
+              שליחה לחתימה
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -275,6 +287,20 @@ export function SignatureRequestsCard({
             </div>
           </div>
         </div>
+      )}
+
+      {showBankDialog && leadId && (
+        <BankAuthDialog
+          leadId={leadId}
+          onCreated={(_docId) => {
+            // After the bank template is saved as a draft, refresh the list
+            // so the new doc appears immediately. The user then clicks
+            // through to /documents/[id] to send it for signing.
+            setShowBankDialog(false);
+            void load();
+          }}
+          onClose={() => setShowBankDialog(false)}
+        />
       )}
     </Card>
   );
