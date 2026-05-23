@@ -21,6 +21,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:catalogs": "tsx prisma/seed-catalogs.ts",
     "db:seed:demo-network": "tsx prisma/seed-demo-network.ts",
+    "db:fix:sign-filenames": "tsx prisma/fix-sign-doc-filenames.ts",
     "db:migrate:areas": "tsx prisma/migrate-areas-to-catalog.ts"
   },
   "dependencies": {

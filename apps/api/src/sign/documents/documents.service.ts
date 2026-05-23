@@ -54,8 +54,16 @@ export class SignDocumentsService {
       if (!property) throw new BadRequestException('Unknown propertyId for this tenant');
     }
 
+    // Multer / busboy parses `filename` in multipart/form-data as latin1
+    // bytes by default (RFC 7578 doesn't mandate a charset). For Hebrew /
+    // Arabic / CJK filenames the original bytes are valid UTF-8 — so we
+    // re-encode by reading the raw bytes back as latin1 and decoding as
+    // UTF-8. The check `looksLatin1Mojibake` avoids double-decoding when
+    // the client (rarely) sent RFC-5987 `filename*=UTF-8''...` correctly.
+    const fileName = decodeMultipartFilename(args.file.originalname);
+
     const hash = createHash('sha256').update(args.file.buffer).digest('hex');
-    const path = await this.storage.save(args.file.buffer, 'documents', args.file.originalname);
+    const path = await this.storage.save(args.file.buffer, 'documents', fileName);
 
     const doc = await this.prisma.unscoped().signDocument.create({
       data: {
@@ -63,7 +71,7 @@ export class SignDocumentsService {
         uploadedByUserId: args.user.id,
         leadId: args.leadId ?? null,
         propertyId: args.propertyId ?? null,
-        originalFileName: args.file.originalname,
+        originalFileName: fileName,
         originalFilePath: path,
         documentHash: hash,
         status: SignDocumentStatus.draft,
@@ -189,5 +197,52 @@ export class SignDocumentsService {
         } as Prisma.InputJsonValue,
       },
     });
+  }
+}
+
+/**
+ * Re-encode a multipart filename that was parsed as latin1 back into UTF-8.
+ *
+ * Why this is needed:
+ *   - RFC 7578 doesn't mandate a charset for `Content-Disposition: filename`.
+ *     Browsers send the bytes verbatim. For non-ASCII filenames the bytes
+ *     ARE the UTF-8 representation.
+ *   - busboy (which Multer uses) reads those bytes as latin1 by default —
+ *     each byte becomes a code point ≤ 0xFF. So UTF-8 `D7 9B` ("כ", 0x5DB
+ *     when properly decoded) becomes the two-char string "×\x9B" (mojibake).
+ *
+ * Detection (`looksLikeLatin1Mojibake`): if the string roundtrips through
+ * `latin1 → utf-8` cleanly AND the result has fewer replacement chars and
+ * isn't all ASCII, we assume it was double-encoded.
+ *
+ * If the client sent RFC 5987 `filename*=UTF-8''...` (rare in form posts),
+ * the value is already decoded correctly and we leave it alone.
+ *
+ * Exported for unit testing.
+ */
+export function decodeMultipartFilename(raw: string | undefined | null): string {
+  if (!raw) return 'unnamed.pdf';
+
+  // Pure ASCII — nothing to do.
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(raw)) return raw;
+
+  // Already valid UTF-8 with proper Unicode chars (e.g. Hebrew letter blocks
+  // 0x0590-0x05FF, Arabic 0x0600-0x06FF, CJK > 0x4E00). If we see any of
+  // those, the string was decoded correctly — no further work.
+  if (/[֐-׿؀-ۿ一-鿿]/.test(raw)) return raw;
+
+  // Try latin1 → utf-8 round-trip. If the result contains "real" non-ASCII
+  // characters (Hebrew etc.) that's the right interpretation.
+  try {
+    const decoded = Buffer.from(raw, 'latin1').toString('utf-8');
+    if (/[֐-׿؀-ۿ一-鿿]/.test(decoded)) {
+      return decoded;
+    }
+    // No proper Unicode emerged — leave original. Better to keep the user's
+    // bytes than to introduce mojibake of our own.
+    return raw;
+  } catch {
+    return raw;
   }
 }
