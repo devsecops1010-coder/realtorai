@@ -21,6 +21,7 @@ import { MortgagePipelineWidget } from '../widgets/mortgage-pipeline';
 import { MarketingKpisWidget } from '../widgets/marketing-kpis';
 import { OpsHandoffsWidget } from '../widgets/ops-handoffs';
 import { FinanceUsageWidget } from '../widgets/finance-usage';
+import { PendingSignaturesWidget } from '../widgets/pending-signatures';
 
 const W = {
   leadsOverview: { key: 'leads-overview', Component: LeadsOverviewWidget } satisfies DashboardWidget,
@@ -33,6 +34,7 @@ const W = {
   marketingKpis: { key: 'marketing-kpis', Component: MarketingKpisWidget } satisfies DashboardWidget,
   opsHandoffs: { key: 'ops-handoffs', Component: OpsHandoffsWidget } satisfies DashboardWidget,
   financeUsage: { key: 'finance-usage', Component: FinanceUsageWidget } satisfies DashboardWidget,
+  pendingSignatures: { key: 'pending-signatures', Component: PendingSignaturesWidget } satisfies DashboardWidget,
 };
 
 export const WORKSPACE_WIDGETS: Record<WorkspaceKind, DashboardWidget[]> = {
@@ -43,24 +45,26 @@ export const WORKSPACE_WIDGETS: Record<WorkspaceKind, DashboardWidget[]> = {
   executive: [W.networkRollup, W.pipelineFunnel, W.financeUsage, W.teamLeaderboard, W.tasksToday],
   // Regional managers manage multiple offices — rollup + team + handoffs.
   regional: [W.networkRollup, W.teamLeaderboard, W.opsHandoffs, W.pipelineFunnel, W.tasksToday],
-  // Office leadership: their office, their team.
+  // Office leadership: their office, their team. Signatures live here too
+  // since the owner approves outgoing brokerage agreements.
   officeLeadership: [
     W.leadsOverview,
     W.teamLeaderboard,
     W.tasksToday,
     W.pipelineFunnel,
     W.mortgagePipeline,
+    W.pendingSignatures,
   ],
   // Team lead: similar to leadership but more focused on the team itself.
-  teamLead: [W.teamLeaderboard, W.leadsOverview, W.tasksToday, W.pipelineFunnel],
-  // Salespeople: tasks first, then their leads.
-  sales: [W.tasksToday, W.leadsOverview, W.pipelineFunnel],
+  teamLead: [W.teamLeaderboard, W.leadsOverview, W.tasksToday, W.pipelineFunnel, W.pendingSignatures],
+  // Salespeople: tasks first, then their leads + signatures they own.
+  sales: [W.tasksToday, W.leadsOverview, W.pipelineFunnel, W.pendingSignatures],
   // Mortgage advisors: their queue, then tasks.
   mortgage: [W.mortgagePipeline, W.tasksToday, W.leadsOverview],
   // Marketing: source breakdown + funnel — outcome-focused.
   marketing: [W.marketingKpis, W.pipelineFunnel, W.leadsOverview],
-  // Operations: handoffs + tasks. They unblock things.
-  operations: [W.opsHandoffs, W.tasksToday, W.leadsOverview],
+  // Operations: handoffs + tasks + signatures (the secretary chases signers).
+  operations: [W.opsHandoffs, W.tasksToday, W.pendingSignatures, W.leadsOverview],
   // Finance / accounting: usage + revenue.
   finance: [W.financeUsage, W.platformMrr, W.leadsOverview],
   // Read-only: just the headline stats.

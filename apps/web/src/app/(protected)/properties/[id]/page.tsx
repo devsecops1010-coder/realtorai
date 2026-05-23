@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SignatureRequestsCard } from '@/components/sign/signature-requests-card';
 import { formatDate } from '@/lib/utils';
 import type { Property, PropertyStatus } from '@/lib/types';
 
@@ -95,6 +96,14 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           </select>
         </CardContent>
       </Card>
+
+      <SignatureRequestsCard
+        propertyId={p.id}
+        title="חוזים ומסמכים"
+        defaultSignerName={p.ownerLead?.fullName ?? ''}
+        defaultSignerEmail={p.ownerLead?.email ?? ''}
+        defaultSignerPhone={p.ownerLead?.phone ?? ''}
+      />
     </div>
   );
 }

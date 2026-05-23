@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
+import { SignatureRequestsCard } from '@/components/sign/signature-requests-card';
 import { formatDate } from '@/lib/utils';
 import type { Lead, LeadStatus, LeadTemperature } from '@/lib/types';
 
@@ -207,6 +208,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </CardContent>
       </Card>
+
+      <SignatureRequestsCard
+        leadId={lead.id}
+        defaultSignerName={lead.fullName ?? ''}
+        defaultSignerEmail={lead.email ?? ''}
+        defaultSignerPhone={lead.phone ?? ''}
+      />
     </div>
   );
 }

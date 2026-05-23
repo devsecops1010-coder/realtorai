@@ -625,6 +625,7 @@ model Lead {
   tasks           Task[]
   properties      Property[]
   mortgageProfile MortgageProfile?
+  signDocuments   SignDocument[] @relation("LeadSignDocuments")
 
   @@index([tenantId, officeId])
   @@index([tenantId, status])
@@ -730,6 +731,8 @@ model Property {
   notes       String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
+
+  signDocuments SignDocument[] @relation("PropertySignDocuments")
 
   @@index([tenantId, officeId, status])
   @@index([tenantId, dealType])
@@ -926,6 +929,14 @@ model SignDocument {
   tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   uploadedByUserId   String             @map("uploaded_by_user_id")
   uploadedBy         User               @relation("SignDocumentsUploaded", fields: [uploadedByUserId], references: [id])
+  // Optional CRM links — when the document is tied to a deal we know which
+  // lead / property it belongs to so the UI can render contextual lists on
+  // /leads/[id] and /properties/[id]. Both nullable so the existing standalone
+  // upload flow keeps working unchanged.
+  leadId             String?            @map("lead_id")
+  lead               Lead?              @relation("LeadSignDocuments", fields: [leadId], references: [id], onDelete: SetNull)
+  propertyId         String?            @map("property_id")
+  property           Property?          @relation("PropertySignDocuments", fields: [propertyId], references: [id], onDelete: SetNull)
   originalFileName   String             @map("original_file_name")
   originalFilePath   String             @map("original_file_path")
   signedFilePath     String?            @map("signed_file_path")
@@ -940,6 +951,8 @@ model SignDocument {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, status])
+  @@index([leadId])
+  @@index([propertyId])
   @@map("sign_documents")
 }
 

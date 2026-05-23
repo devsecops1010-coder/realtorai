@@ -237,7 +237,12 @@ export interface Property {
   tenantId: string;
   officeId: string;
   ownerLeadId: string | null;
-  ownerLead?: { id: string; fullName: string | null; phone: string | null } | null;
+  ownerLead?: {
+    id: string;
+    fullName: string | null;
+    phone: string | null;
+    email?: string | null;
+  } | null;
   dealType: PropertyDealType;
   city: string | null;
   area: string | null;
