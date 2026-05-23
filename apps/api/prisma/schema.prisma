@@ -631,7 +631,7 @@ model Lead {
   tasks           Task[]
   properties      Property[]
   mortgageProfile MortgageProfile?
-  signDocuments   SignDocument[] @relation("LeadSignDocuments")
+  signDocuments   SignDocument[]   @relation("LeadSignDocuments")
 
   @@index([tenantId, officeId])
   @@index([tenantId, status])
@@ -642,24 +642,24 @@ model Lead {
 }
 
 model MortgageAdvisor {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fullName  String
+  id                  String   @id @default(uuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fullName            String
   // Optional — only required when generating bank authorization letters
   // (each bank's כתב הסמכה form has slots for these). Stored once on the
   // advisor row so it's auto-filled into every future letter.
-  nationalId        String?
-  licenseNumber     String?  // מספר רישיון יועץ משכנתאות מהאוצר
-  consultingCompany String?  // שם חברת הייעוץ (אופציונלי — חלק מהיועצים עצמאיים)
+  nationalId          String?
+  licenseNumber       String? // מספר רישיון יועץ משכנתאות מהאוצר
+  consultingCompany   String? // שם חברת הייעוץ (אופציונלי — חלק מהיועצים עצמאיים)
   consultingCompanyId String? // ח.פ. של חברת הייעוץ
-  company   String?
-  phone     String?
-  email     String?
-  notes     String?
-  status    String   @default("active") // active, paused
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  company             String?
+  phone               String?
+  email               String?
+  notes               String?
+  status              String   @default("active") // active, paused
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   referrals MortgageReferral[]
 
@@ -733,25 +733,27 @@ model MortgageReferral {
 }
 
 model Property {
-  id          String             @id @default(uuid())
-  tenantId    String
-  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  officeId    String
-  office      Office             @relation(fields: [officeId], references: [id], onDelete: Cascade)
-  ownerLeadId String?
-  ownerLead   Lead?              @relation(fields: [ownerLeadId], references: [id], onDelete: SetNull)
-  dealType    PropertyDealType
-  city        String?
-  area        String?
-  street      String?
-  rooms       Float?
-  floor       Int?
-  price       Int?
-  condition   PropertyCondition?
-  status      PropertyStatus     @default(draft)
-  notes       String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id            String             @id @default(uuid())
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId      String
+  office        Office             @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  ownerLeadId   String?
+  ownerLead     Lead?              @relation(fields: [ownerLeadId], references: [id], onDelete: SetNull)
+  dealType      PropertyDealType
+  city          String?
+  area          String?
+  street        String?
+  rooms         Float?
+  floor         Int?
+  price         Int?
+  condition     PropertyCondition?
+  coverImageUrl String?
+  galleryUrls   Json?
+  status        PropertyStatus     @default(draft)
+  notes         String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   signDocuments SignDocument[] @relation("PropertySignDocuments")
 
@@ -1070,17 +1072,17 @@ model WebhookDelivery {
 // ---------------------------------------------------------------------------
 
 model BankAuthTemplate {
-  id          String  @id @default(uuid())
-  bankSlug    String  @unique // 'discount' | 'leumi' | 'hapoalim' | ...
-  bankNameHe  String          // 'בנק דיסקונט'
+  id          String   @id @default(uuid())
+  bankSlug    String   @unique // 'discount' | 'leumi' | 'hapoalim' | ...
+  bankNameHe  String // 'בנק דיסקונט'
   bankNameEn  String?
-  pdfPath     String          // path under apps/api/storage/sign/templates/
+  pdfPath     String // path under apps/api/storage/sign/templates/
   // Layout of the overlay — see SignPdfOverlayService for the shape.
   // [{ key:'borrower1_name', page:0, x:380, y:720, fontSize:11, maxWidth:200, align:'right' }]
-  overlay     Json    @default("[]")
+  overlay     Json     @default("[]")
   // For AcroForm-aware templates: { 'borrower1_name': 'Text1.0', ... }
-  acroFormMap Json    @default("{}")
-  active      Boolean @default(true)
+  acroFormMap Json     @default("{}")
+  active      Boolean  @default(true)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

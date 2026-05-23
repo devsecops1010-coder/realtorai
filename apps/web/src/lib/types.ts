@@ -264,6 +264,8 @@ export interface Property {
   floor: number | null;
   price: number | null;
   condition: PropertyCondition | null;
+  coverImageUrl: string | null;
+  galleryUrls: string[] | null;
   status: PropertyStatus;
   notes: string | null;
   createdAt: string;
