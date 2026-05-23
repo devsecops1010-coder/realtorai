@@ -3,6 +3,7 @@ import { PricingSection } from '@/components/marketing/pricing-section';
 import { FAQ } from '@/components/marketing/faq';
 import { ContactForm } from '@/components/marketing/contact-form';
 import { Footer } from '@/components/marketing/footer';
+import { RoiCalculator } from '@/components/marketing/roi-calculator';
 
 export const metadata = {
   title: 'מחירים | Realtorai',
@@ -23,6 +24,7 @@ export default function PricingPage() {
           </p>
         </div>
         <PricingSection heading="" subheading="" />
+        <RoiCalculator />
         <FAQ />
         <ContactForm />
       </main>

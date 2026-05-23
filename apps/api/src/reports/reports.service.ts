@@ -57,6 +57,46 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Funnel view: lead count per status, ordered from "new" to "terminal".
+   * Designed for the dashboard pipeline widget — returns an array of
+   * `{ status, label, count }` so the UI can render bars without knowing
+   * the enum order.
+   */
+  async funnel() {
+    const officeId = RequestContext.get().officeId;
+    const where = { ...(officeId ? { officeId } : {}) };
+    // Single SQL GROUP BY beats 9 sequential count() calls for big tenants.
+    const grouped = await this.prisma.scoped.lead.groupBy({
+      by: ['status'],
+      where,
+      _count: { _all: true },
+    });
+    const byStatus = new Map(grouped.map((r) => [r.status, r._count._all]));
+    // Funnel order: live first, terminal last. The UI uses the index for
+    // gradient + width.
+    const order: { status: 'new' | 'contacted' | 'qualified' | 'hot' | 'meeting_scheduled' | 'handoff_to_human' | 'no_answer' | 'not_relevant' | 'opted_out'; label: string }[] = [
+      { status: 'new', label: 'חדש' },
+      { status: 'contacted', label: 'נוצר קשר' },
+      { status: 'qualified', label: 'מוסמך' },
+      { status: 'hot', label: 'חם' },
+      { status: 'meeting_scheduled', label: 'פגישה נקבעה' },
+      { status: 'handoff_to_human', label: 'הועבר למתווך' },
+      { status: 'no_answer', label: 'אין מענה' },
+      { status: 'not_relevant', label: 'לא רלוונטי' },
+      { status: 'opted_out', label: 'הוסר' },
+    ];
+    const total = order.reduce((sum, s) => sum + (byStatus.get(s.status) ?? 0), 0);
+    return {
+      total,
+      stages: order.map((s) => ({
+        status: s.status,
+        label: s.label,
+        count: byStatus.get(s.status) ?? 0,
+      })),
+    };
+  }
+
   async usageSummary() {
     const officeId = RequestContext.get().officeId;
     const startOfMonth = new Date();

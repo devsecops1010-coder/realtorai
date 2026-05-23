@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -9,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { ConversationsService } from './conversations.service';
+import { QuickReplyService } from './quick-reply.service';
 import { ListConversationsQuery } from './dto/list-conversations.query';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { HandoffDto } from './dto/handoff.dto';
@@ -19,7 +22,10 @@ import { Audit } from '../common/decorators/audit.decorator';
 
 @Controller('conversations')
 export class ConversationsController {
-  constructor(private readonly conversations: ConversationsService) {}
+  constructor(
+    private readonly conversations: ConversationsService,
+    private readonly quickReply: QuickReplyService,
+  ) {}
 
   @Get()
   list(@Query() query: ListConversationsQuery) {
@@ -60,5 +66,22 @@ export class ConversationsController {
   @Audit('message.send', { targetType: 'message' })
   postMessage(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: PostMessageDto) {
     return this.conversations.postMessage(id, dto);
+  }
+
+  /**
+   * Suggest an AI-drafted reply for the current conversation. The user
+   * decides whether to send it as-is, edit, or ignore.
+   */
+  @Post(':id/suggest-reply')
+  @HttpCode(HttpStatus.OK)
+  @Roles(
+    UserRole.office_owner,
+    UserRole.office_manager,
+    UserRole.realtor,
+    UserRole.team_lead,
+  )
+  @Audit('conversation.suggest_reply', { targetType: 'conversation' })
+  suggestReply(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.quickReply.suggest(id);
   }
 }

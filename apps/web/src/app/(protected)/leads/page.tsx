@@ -11,6 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
 import { LeadsKanban } from '@/components/leads/leads-kanban';
+import { BulkActionsBar } from '@/components/leads/bulk-actions-bar';
+import { SavedFilters } from '@/components/leads/saved-filters';
+import { TableRowSkeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Users } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { Lead, LeadStatus, LeadTemperature, Paginated } from '@/lib/types';
 
@@ -47,6 +52,10 @@ function LeadsPageInner() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [assigneeName, setAssigneeName] = useState<string | null>(null);
+  // Multi-select state. Only used in table view (Kanban already supports
+  // single-lead drag, which is the equivalent gesture). Cleared when filters
+  // change so a stale selection from a different filter set can't fire.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Pull the assignee's name when filtering by user, so the chip shows a
   // human label instead of a uuid. Best-effort — falls back to id slice.
@@ -87,8 +96,25 @@ function LeadsPageInner() {
 
   useEffect(() => {
     load('');
+    setSelected(new Set()); // drop selection when filters change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
+
+  // Toggle a single row's selection. We mutate the Set in a new instance so
+  // React picks up the change (Sets are reference-equal otherwise).
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === leads.length ? new Set() : new Set(leads.map((l) => l.id)),
+    );
+  }
 
   const hasFilter = Boolean(status || temperature || assignedUserId);
 
@@ -153,6 +179,8 @@ function LeadsPageInner() {
         </div>
       )}
 
+      <SavedFilters />
+
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -186,6 +214,17 @@ function LeadsPageInner() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="בחר הכל"
+                    className="h-4 w-4 cursor-pointer"
+                    checked={leads.length > 0 && selected.size === leads.length}
+                    // indeterminate isn't a JSX attribute — set via ref-effect
+                    // would be cleaner, but the visual gap here is small.
+                    onChange={toggleAll}
+                  />
+                </TableHead>
                 <TableHead>שם</TableHead>
                 <TableHead>טלפון</TableHead>
                 <TableHead>כוונה</TableHead>
@@ -197,40 +236,70 @@ function LeadsPageInner() {
             </TableHeader>
             <TableBody>
               {loading && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    טוען...
-                  </TableCell>
-                </TableRow>
+                // 5 skeleton rows gives a sense of "yes, content is coming"
+                // without filling the whole viewport with grey bars.
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <TableRowSkeleton key={`sk-${i}`} cols={8} />
+                  ))}
+                </>
               )}
               {!loading && leads.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    אין לידים להצגה
+                  <TableCell colSpan={8} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title={hasFilter ? 'אין לידים במסנן הזה' : 'עוד לא הוספת לידים'}
+                      body={
+                        hasFilter
+                          ? 'נסה להסיר את המסנן, או צור ליד חדש בקטגוריה הזו.'
+                          : 'הוסף את הליד הראשון, או טען נתוני דמו כדי לחקור את המערכת.'
+                      }
+                      cta={
+                        hasFilter
+                          ? { label: 'נקה מסנן', onClick: () => router.push('/leads') }
+                          : { label: 'ליד חדש', href: '/leads/new' }
+                      }
+                      secondaryCta={
+                        hasFilter ? undefined : { label: 'הוסף ליד חדש', href: '/leads/new' }
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               )}
               {leads.map((l) => (
                 <TableRow
                   key={l.id}
-                  className="cursor-pointer"
+                  // Don't add cursor-pointer on the whole row when there's a
+                  // checkbox — the affordance is ambiguous. We keep row click
+                  // navigating, and stopPropagation on the checkbox cell.
+                  className={selected.has(l.id) ? 'bg-accent/30' : ''}
                   onClick={() => router.push(`/leads/${l.id}`)}
                 >
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label="בחר ליד"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={selected.has(l.id)}
+                      onChange={() => toggle(l.id)}
+                    />
+                  </TableCell>
+                  <TableCell className="cursor-pointer">
                     <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
                       {l.fullName || '—'}
                     </Link>
                   </TableCell>
-                  <TableCell dir="ltr">{l.phone || '—'}</TableCell>
-                  <TableCell>{l.intent}</TableCell>
-                  <TableCell>
+                  <TableCell dir="ltr" className="cursor-pointer">{l.phone || '—'}</TableCell>
+                  <TableCell className="cursor-pointer">{l.intent}</TableCell>
+                  <TableCell className="cursor-pointer">
                     <StatusBadge value={l.status} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="cursor-pointer">
                     <TempBadge value={l.temperature} />
                   </TableCell>
-                  <TableCell>{l.assignedUser?.name || '—'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{formatDate(l.createdAt)}</TableCell>
+                  <TableCell className="cursor-pointer">{l.assignedUser?.name || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground cursor-pointer">{formatDate(l.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -239,6 +308,19 @@ function LeadsPageInner() {
       )}
 
       <p className="text-sm text-muted-foreground">סה"כ: {total}</p>
+
+      {/* Floating bulk-actions toolbar — only renders in table view since
+          Kanban already supports inline per-card status changes. */}
+      {view === 'table' && selected.size > 0 && (
+        <BulkActionsBar
+          selected={Array.from(selected)}
+          onClear={() => setSelected(new Set())}
+          onDone={() => {
+            setSelected(new Set());
+            load(q);
+          }}
+        />
+      )}
     </div>
   );
 }

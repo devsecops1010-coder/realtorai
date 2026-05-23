@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
 import { SignatureRequestsCard } from '@/components/sign/signature-requests-card';
 import { AiInsightsCard } from '@/components/leads/ai-insights-card';
+import { PropertyMatchesCard } from '@/components/leads/property-matches-card';
 import { formatDate } from '@/lib/utils';
 import type { Lead, LeadStatus, LeadTemperature } from '@/lib/types';
 
@@ -176,7 +177,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {/* AI insights — sits between the identity section and the activity
           history so the user reads the recommendation before scanning the raw
           conversations + tasks below it. */}
-      <AiInsightsCard leadId={lead.id} />
+      <div className="grid lg:grid-cols-2 gap-4">
+        <AiInsightsCard leadId={lead.id} />
+        <PropertyMatchesCard leadId={lead.id} />
+      </div>
 
       <Card>
         <CardHeader>

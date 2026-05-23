@@ -268,6 +268,13 @@ export function Sidebar() {
           <Shield className="h-4 w-4" />
           אבטחה (2FA)
         </Link>
+        <Link
+          href="/account/data"
+          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors ${pathname?.startsWith('/account/data') ? 'bg-accent' : ''}`}
+        >
+          <ScrollText className="h-4 w-4" />
+          ייצוא + ייבוא נתונים
+        </Link>
         <Button variant="ghost" className="w-full justify-start" onClick={logout}>
           <LogOut className="h-4 w-4 ml-2" />
           התנתקות

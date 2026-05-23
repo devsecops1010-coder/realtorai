@@ -37,6 +37,7 @@ import { SignModule } from './sign/sign.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { HealthModule } from './health/health.module';
 import { PushModule } from './push/push.module';
+import { SearchModule } from './search/search.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TenantStatusGuard } from './common/guards/tenant-status.guard';
@@ -131,6 +132,7 @@ import { EmailModule } from './email/email.module';
     WhatsAppModule,
     NotificationsModule,
     PushModule,
+    SearchModule,
     BillingModule,
     AgentsModule,
     QueueModule,

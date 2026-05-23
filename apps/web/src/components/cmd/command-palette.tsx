@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
-import type { Lead, Paginated, Property, UserRole } from '@/lib/types';
+import type { UserRole } from '@/lib/types';
 
 interface NavItem {
   href: string;
@@ -51,10 +51,11 @@ const NAV: NavItem[] = [
 ];
 
 interface SearchResult {
-  type: 'lead' | 'property';
+  type: 'lead' | 'property' | 'task' | 'conversation' | 'user';
   id: string;
   title: string;
-  subtitle: string;
+  subtitle: string | null;
+  href: string;
 }
 
 /**
@@ -87,42 +88,20 @@ export function CommandPalette() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // Debounced search. Only fires for 3+ chars to keep API quiet.
+  // Debounced search. 2+ chars (the unified search enforces min length on
+  // its side, but we don't fire below 2 to keep the network quieter).
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
-    if (query.trim().length < 3) {
+    if (query.trim().length < 2) {
       setResults([]);
       return;
     }
     debounce.current = setTimeout(async () => {
       try {
-        const [leadsRes, propsRes] = await Promise.all([
-          api<Paginated<Lead>>(`/leads?q=${encodeURIComponent(query)}&take=5`),
-          api<Paginated<Property>>(`/properties?q=${encodeURIComponent(query)}&take=5`).catch(
-            () => ({ items: [], total: 0, take: 5, skip: 0 }),
-          ),
-        ]);
-        const merged: SearchResult[] = [
-          ...leadsRes.items.map((l) => ({
-            type: 'lead' as const,
-            id: l.id,
-            title: l.fullName || l.phone || 'ליד',
-            subtitle: [l.phone, l.city].filter(Boolean).join(' · ') || l.status,
-          })),
-          ...propsRes.items.map((p) => ({
-            type: 'property' as const,
-            id: p.id,
-            title: `${p.dealType === 'sale' ? 'מכירה' : 'השכרה'} · ${p.city ?? '—'}`,
-            subtitle: [
-              p.area,
-              p.rooms ? `${p.rooms} חד'` : null,
-              p.price ? `₪${Number(p.price).toLocaleString()}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          })),
-        ];
-        setResults(merged);
+        const hits = await api<SearchResult[]>(
+          `/search?q=${encodeURIComponent(query)}`,
+        );
+        setResults(hits);
       } catch {
         setResults([]);
       }
@@ -171,27 +150,49 @@ export function CommandPalette() {
 
             {results.length > 0 && (
               <Command.Group heading="תוצאות חיפוש" className="text-xs text-muted-foreground px-2 py-1">
-                {results.map((r) => (
-                  <Command.Item
-                    key={`${r.type}-${r.id}`}
-                    value={`${r.type}-${r.id}-${r.title}-${r.subtitle}`}
-                    onSelect={() => go(`/${r.type === 'lead' ? 'leads' : 'properties'}/${r.id}`)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer aria-selected:bg-accent text-sm"
-                  >
-                    {r.type === 'lead' ? (
-                      <Users className="h-4 w-4 text-amber-600" />
-                    ) : (
-                      <Building className="h-4 w-4 text-emerald-600" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{r.title}</p>
-                      <p className="text-xs text-muted-foreground truncate" dir="ltr">
-                        {r.subtitle}
-                      </p>
-                    </div>
-                    <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Command.Item>
-                ))}
+                {results.map((r) => {
+                  // Each entity type gets its own coloured icon so the user
+                  // can scan the result list by category at a glance.
+                  const Icon =
+                    r.type === 'lead'
+                      ? Users
+                      : r.type === 'property'
+                        ? Building
+                        : r.type === 'task'
+                          ? ListTodo
+                          : r.type === 'conversation'
+                            ? MessageSquare
+                            : UsersRound;
+                  const iconColor =
+                    r.type === 'lead'
+                      ? 'text-amber-600'
+                      : r.type === 'property'
+                        ? 'text-emerald-600'
+                        : r.type === 'task'
+                          ? 'text-violet-600'
+                          : r.type === 'conversation'
+                            ? 'text-blue-600'
+                            : 'text-slate-600';
+                  return (
+                    <Command.Item
+                      key={`${r.type}-${r.id}`}
+                      value={`${r.type}-${r.id}-${r.title}-${r.subtitle ?? ''}`}
+                      onSelect={() => go(r.href)}
+                      className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer aria-selected:bg-accent text-sm"
+                    >
+                      <Icon className={`h-4 w-4 ${iconColor}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{r.title}</p>
+                        {r.subtitle && (
+                          <p className="text-xs text-muted-foreground truncate" dir="ltr">
+                            {r.subtitle}
+                          </p>
+                        )}
+                      </div>
+                      <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Command.Item>
+                  );
+                })}
               </Command.Group>
             )}
 

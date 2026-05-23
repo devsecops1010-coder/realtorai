@@ -435,16 +435,38 @@ function LeadStep({
   onBack: () => void;
   onFinish: () => void;
 }) {
+  const router = useRouter();
+  const [seeding, setSeeding] = useState(false);
+
+  async function seedDemo() {
+    setSeeding(true);
+    try {
+      const res = await api<{ created: { leads: number; properties: number } }>(
+        '/onboarding/sample-data',
+        { method: 'POST' },
+      );
+      toast.success(
+        `נוצרו ${res.created.leads} לידים ו-${res.created.properties} נכסי דמו`,
+      );
+      onFinish();
+      router.push('/leads');
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'יצירת דמו נכשלה');
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-xl font-bold mb-1">הליד הראשון שלך</h3>
         <p className="text-sm text-muted-foreground">
-          בוא נכניס למערכת ליד אחד כדי שתראה איך נראית התמונה המלאה — או חבר את טופס יצירת הקשר שלך לקבלת לידים אוטומטית.
+          בוא נכניס למערכת ליד — או נטען נתוני דמו כדי לראות את כל הפיצ'רים במכת אחת.
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="grid sm:grid-cols-3 gap-3">
         <button
           type="button"
           onClick={onContinue}
@@ -452,32 +474,36 @@ function LeadStep({
         >
           <Users className="h-6 w-6 text-primary mb-2" />
           <p className="font-semibold mb-1">הוסף ליד ידנית</p>
+          <p className="text-xs text-muted-foreground">צור ליד אמיתי בטופס</p>
+        </button>
+        <button
+          type="button"
+          onClick={seedDemo}
+          disabled={seeding}
+          className="text-right border-2 border-fuchsia-500 rounded-lg p-4 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/20 transition-colors disabled:opacity-50"
+        >
+          <Sparkles className="h-6 w-6 text-fuchsia-500 mb-2" />
+          <p className="font-semibold mb-1">{seeding ? 'יוצר...' : 'טען נתוני דמו'}</p>
           <p className="text-xs text-muted-foreground">
-            ניצור לך ליד דמה (או אמיתי) כדי שתבחן את ה-AI חי
+            5 לידים, 3 נכסים, פרופיל משכנתאות
           </p>
         </button>
         <button
           type="button"
           onClick={() => {
             onFinish();
-            window.open('/api/contact', '_blank');
           }}
           className="text-right border rounded-lg p-4 hover:bg-muted transition-colors"
         >
-          <Sparkles className="h-6 w-6 text-fuchsia-500 mb-2" />
-          <p className="font-semibold mb-1">חבר טופס יצירת קשר</p>
-          <p className="text-xs text-muted-foreground">
-            קוד JS שמוסיף לידים אוטומטית מהאתר שלך
-          </p>
+          <CheckCircle2 className="h-6 w-6 text-muted-foreground mb-2" />
+          <p className="font-semibold mb-1">סיים בלי</p>
+          <p className="text-xs text-muted-foreground">אחזור מאוחר יותר</p>
         </button>
       </div>
 
       <div className="flex items-center justify-between pt-3">
         <Button variant="ghost" onClick={onBack} className="gap-1">
           <ArrowRight className="h-4 w-4" /> חזור
-        </Button>
-        <Button variant="outline" onClick={onFinish}>
-          סיים בלי
         </Button>
       </div>
     </div>

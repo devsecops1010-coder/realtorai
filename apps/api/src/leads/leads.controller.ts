@@ -13,6 +13,8 @@ import {
 import { UserRole } from '@prisma/client';
 import { LeadsService } from './leads.service';
 import { LeadInsightsService } from './lead-insights.service';
+import { PropertyMatcherService } from './property-matcher.service';
+import { BulkLeadsDto } from './dto/bulk-leads.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { AssignLeadDto } from './dto/assign-lead.dto';
@@ -26,6 +28,7 @@ export class LeadsController {
   constructor(
     private readonly leads: LeadsService,
     private readonly insights: LeadInsightsService,
+    private readonly matcher: PropertyMatcherService,
   ) {}
 
   @Get()
@@ -60,6 +63,43 @@ export class LeadsController {
     return this.leads.assign(id, dto);
   }
 
+  /**
+   * Import leads from a CSV payload. Body is `{ csv: string }` — the
+   * import is small enough that JSON serialization is cheaper than the
+   * multipart machinery (and the frontend FileReader already converts the
+   * upload to a string).
+   */
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @Roles(
+    UserRole.office_owner,
+    UserRole.office_manager,
+    UserRole.team_lead,
+    UserRole.branch_manager,
+  )
+  @Audit('lead.import', { targetType: 'lead' })
+  importCsv(@Body() body: { csv: string }) {
+    return this.leads.importCsv(body?.csv ?? '');
+  }
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.OK)
+  // Bulk mutations are sensitive — restricted to management roles. Regular
+  // realtors can still edit leads one by one via PATCH.
+  @Roles(
+    UserRole.office_owner,
+    UserRole.office_manager,
+    UserRole.team_lead,
+    UserRole.branch_manager,
+    UserRole.district_manager,
+    UserRole.ceo,
+    UserRole.deputy_ceo,
+  )
+  @Audit('lead.bulk', { targetType: 'lead' })
+  bulk(@Body() dto: BulkLeadsDto) {
+    return this.leads.bulk(dto.ids, dto.action, dto.value ?? null);
+  }
+
   @Post(':id/opt-out')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.office_owner, UserRole.office_manager, UserRole.realtor)
@@ -91,5 +131,15 @@ export class LeadsController {
   @Audit('lead.insights_generated', { targetType: 'lead' })
   generateInsights(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.insights.generate(id);
+  }
+
+  /**
+   * Find matching properties for a lead. Returns top-N scored matches.
+   * GET (not POST) — no LLM call, just a DB query + in-memory scoring,
+   * so idempotent + cacheable.
+   */
+  @Get(':id/property-matches')
+  matches(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.matcher.findMatches(id);
   }
 }

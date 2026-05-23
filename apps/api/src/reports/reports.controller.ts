@@ -14,4 +14,9 @@ export class ReportsController {
   usage() {
     return this.reports.usageSummary();
   }
+
+  @Get('funnel')
+  funnel() {
+    return this.reports.funnel();
+  }
 }

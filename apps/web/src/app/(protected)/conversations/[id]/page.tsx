@@ -2,7 +2,9 @@
 
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +17,9 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
   const router = useRouter();
   const [conv, setConv] = useState<ConversationDetail | null>(null);
   const [reply, setReply] = useState('');
+  // AI-suggest state: separate from `reply` so the user can still see what
+  // they were typing if the suggestion comes back empty/disappointing.
+  const [suggesting, setSuggesting] = useState(false);
 
   async function load() {
     const c = await api<ConversationDetail>(`/conversations/${id}`);
@@ -35,6 +40,23 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
   async function handoff() {
     await api(`/conversations/${id}/handoff`, { method: 'POST', body: { reason: 'manual' } });
     load();
+  }
+
+  // Ask the LLM for a draft. Overwrites whatever's in `reply` — that's the
+  // intent (the button is "draft a reply", not "append to my draft").
+  async function suggest() {
+    setSuggesting(true);
+    try {
+      const { suggestion } = await api<{ suggestion: string; model: string }>(
+        `/conversations/${id}/suggest-reply`,
+        { method: 'POST' },
+      );
+      setReply(suggestion);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'יצירת הצעה נכשלה');
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   if (!conv) return <div>טוען...</div>;
@@ -98,13 +120,30 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
 
       <Card>
         <CardHeader>
-          <CardTitle>הוסף הודעה</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>הוסף הודעה</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={suggest}
+              disabled={suggesting}
+              className="gap-1.5"
+              title="הצעה אוטומטית — מבוססת על הקשר השיחה"
+            >
+              {suggesting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-fuchsia-500" />
+              )}
+              הצע תשובה
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            placeholder="כתוב הודעה ידנית..."
+            placeholder="כתוב הודעה ידנית, או לחץ ׳הצע תשובה׳ ל-AI..."
             rows={3}
           />
           <Button className="mt-3" onClick={send} disabled={!reply.trim()}>

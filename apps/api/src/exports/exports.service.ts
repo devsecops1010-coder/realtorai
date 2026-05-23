@@ -18,6 +18,91 @@ function toCsv(headers: string[], rows: unknown[][]): string {
 export class ExportsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Full tenant data export. Includes everything a user might reasonably
+   * want to take with them when leaving:
+   *   - leads + their conversations + messages + tasks
+   *   - properties
+   *   - mortgage profiles + referrals (consent-gated)
+   *   - office + user list (without password hashes!)
+   *
+   * Returns a plain object — the controller serializes to JSON. We don't
+   * stream because the data sizes for a single tenant fit comfortably in
+   * memory; if that ever changes, switch to a streaming JSON builder.
+   *
+   * Sensitive fields scrubbed:
+   *   - passwordHash, totpSecret, totpRecoveryCodes — never exported
+   *   - refreshToken hashes — same
+   */
+  async fullTenantExport() {
+    const [
+      tenant,
+      offices,
+      users,
+      leads,
+      properties,
+      tasks,
+      conversations,
+      mortgageProfiles,
+      mortgageReferrals,
+    ] = await Promise.all([
+      // Tenant row read via unscoped + manual filter — the scoped extension
+      // intentionally blocks Tenant queries. We grab only the fields the
+      // user owns conceptually, none of the billing metadata.
+      this.prisma.scoped.office.findFirst({ select: { tenantId: true } }).then((row) =>
+        row
+          ? this.prisma.unscoped().tenant.findUnique({
+              where: { id: row.tenantId },
+              select: { id: true, name: true, status: true, createdAt: true },
+            })
+          : null,
+      ),
+      this.prisma.scoped.office.findMany({
+        select: {
+          id: true, name: true, city: true, areas: true, phone: true,
+          whatsappNumber: true, status: true, createdAt: true,
+        },
+      }),
+      this.prisma.scoped.user.findMany({
+        select: {
+          id: true, name: true, email: true, phone: true, role: true,
+          status: true, officeId: true, lastLoginAt: true, createdAt: true,
+        },
+      }),
+      this.prisma.scoped.lead.findMany({
+        include: {
+          assignedUser: { select: { id: true, name: true } },
+        },
+        take: 50_000,
+      }),
+      this.prisma.scoped.property.findMany({ take: 50_000 }),
+      this.prisma.scoped.task.findMany({ take: 50_000 }),
+      this.prisma.scoped.conversation.findMany({
+        include: {
+          messages: { select: { senderType: true, body: true, createdAt: true } },
+        },
+        take: 10_000,
+      }),
+      this.prisma.scoped.mortgageProfile.findMany({ take: 10_000 }),
+      this.prisma.scoped.mortgageReferral.findMany({ take: 10_000 }),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      schemaVersion: 1,
+      note: 'Realtorai full tenant data export. Sensitive auth secrets are NOT included.',
+      tenant,
+      offices,
+      users,
+      leads,
+      properties,
+      tasks,
+      conversations,
+      mortgageProfiles,
+      mortgageReferrals,
+    };
+  }
+
   async leadsCsv(): Promise<string> {
     const leads = await this.prisma.scoped.lead.findMany({
       orderBy: { createdAt: 'desc' },
