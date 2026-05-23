@@ -22,13 +22,16 @@ export async function createTestApp(): Promise<{ app: INestApplication; prisma: 
 }
 
 export async function resetDatabase(prisma: PrismaService) {
-  // Truncate in FK-safe order via CASCADE.
+  // Truncate in FK-safe order via CASCADE. CASCADE handles cross-table
+  // dependencies (e.g. office_areas references both offices and area_catalog)
+  // so the order between tables is mostly a convenience.
   await prisma.$executeRawUnsafe(
     'TRUNCATE TABLE ' +
       '"mortgage_referrals", "mortgage_profiles", "mortgage_advisors", ' +
       '"notifications", "usage_events", ' +
       '"messages", "tasks", "conversations", "agent_configs", "agents", ' +
-      '"leads", "refresh_tokens", "audit_logs", "opt_outs", "users", "offices", "tenants" ' +
+      '"leads", "refresh_tokens", "audit_logs", "opt_outs", "users", ' +
+      '"office_areas", "offices", "area_catalog", "plan_catalog", "tenants" ' +
       'RESTART IDENTITY CASCADE',
   );
 }

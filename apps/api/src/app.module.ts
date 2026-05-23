@@ -30,12 +30,21 @@ import { AdminModule } from './admin/admin.module';
 import { ExportsModule } from './exports/exports.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { MortgageModule } from './mortgage/mortgage.module';
+import { GrowthModule } from './growth/growth.module';
+import { AuditModule } from './audit/audit.module';
+import { OrgModule } from './org/org.module';
+import { SignModule } from './sign/sign.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { TenantStatusGuard } from './common/guards/tenant-status.guard';
+import { PermissionsService } from './common/permissions/permissions.service';
 import { RequestContextInterceptor } from './common/interceptors/request-context.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { CookieParserMiddleware } from './common/middleware/cookie-parser.middleware';
+import { CsrfMiddleware } from './common/middleware/csrf.middleware';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -70,6 +79,19 @@ import { CookieParserMiddleware } from './common/middleware/cookie-parser.middle
             if (res.statusCode >= 400) return 'warn';
             return 'info';
           },
+          // Enrich every log line with the authenticated user's context.
+          // Pulled directly from req.user (set by JwtStrategy) so it appears
+          // even on logs emitted outside of NestJS's request lifecycle.
+          customProps: (req) => {
+            const u = (req as unknown as { user?: { sub?: string; tenantId?: string; officeId?: string; role?: string } }).user;
+            if (!u) return {};
+            return {
+              tenantId: u.tenantId,
+              userId: u.sub,
+              officeId: u.officeId,
+              role: u.role,
+            };
+          },
         },
       }),
     }),
@@ -88,6 +110,7 @@ import { CookieParserMiddleware } from './common/middleware/cookie-parser.middle
       ],
     }),
     PrismaModule,
+    EmailModule,
     AuthModule,
     TenantsModule,
     OfficesModule,
@@ -111,11 +134,20 @@ import { CookieParserMiddleware } from './common/middleware/cookie-parser.middle
     ExportsModule,
     MarketingModule,
     MortgageModule,
+    GrowthModule,
+    AuditModule,
+    OrgModule,
+    SignModule,
+    CatalogModule,
     HealthModule,
   ],
   providers: [
+    PermissionsService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // TenantStatusGuard runs between auth + role checks. Order in Nest is the
+    // order providers are listed here.
+    { provide: APP_GUARD, useClass: TenantStatusGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
@@ -126,5 +158,8 @@ export class AppModule implements NestModule {
     // Apply cookie-parser to every request so JwtStrategy + AuthController
     // can read/write the rai_access / rai_refresh httpOnly cookies.
     consumer.apply(CookieParserMiddleware).forRoutes('*');
+    // CSRF runs after cookie-parser (Express applies middleware in
+    // registration order) so it can read req.cookies.
+    consumer.apply(CsrfMiddleware).forRoutes('*');
   }
 }

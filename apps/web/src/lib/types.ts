@@ -3,9 +3,18 @@
 export type UserRole =
   | 'platform_owner'
   | 'platform_admin'
+  | 'ceo'
+  | 'deputy_ceo'
+  | 'district_manager'
+  | 'branch_manager'
   | 'office_owner'
   | 'office_manager'
+  | 'team_lead'
   | 'realtor'
+  | 'mortgage_advisor'
+  | 'marketing_manager'
+  | 'secretary'
+  | 'accountant'
   | 'viewer';
 
 export type LeadStatus =
@@ -53,7 +62,14 @@ export interface Office {
   id: string;
   name: string;
   city: string | null;
+  // Legacy denormalized free-text — being phased out in favor of areaLinks.
   areas: string[];
+  // Catalog-backed area links populated by the new endpoints when the office
+  // has been re-saved through the new flow.
+  areaLinks?: {
+    areaId: string;
+    area: { id: string; slug: string; nameHe: string; region: string | null };
+  }[];
   phone: string | null;
   whatsappNumber: string | null;
   status: string;

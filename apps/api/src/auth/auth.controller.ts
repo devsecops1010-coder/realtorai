@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Req,
   Res,
@@ -12,11 +13,18 @@ import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService, type AuthTokens } from './auth.service';
+import { AuthLifecycleService } from './auth-lifecycle.service';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import {
+  CompleteActivationDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/activation.dto';
 import type { Env } from '../config/env.schema';
 import { Public } from '../common/decorators/public.decorator';
+import { AllowSuspended } from '../common/decorators/allow-suspended.decorator';
 import { Audit } from '../common/decorators/audit.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -27,8 +35,68 @@ const REFRESH_COOKIE = 'rai_refresh';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly lifecycle: AuthLifecycleService,
     private readonly config: ConfigService<Env, true>,
   ) {}
+
+  /**
+   * Inspect an activation token — used by the web `/activate/[token]` page
+   * to verify the link is valid before showing the password form. Returns
+   * 404 / 400 with no body for invalid / expired / used tokens so the page
+   * can render a clean error state.
+   */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('activate/:token')
+  previewActivation(@Param('token') token: string) {
+    return this.lifecycle.previewActivation(token);
+  }
+
+  /**
+   * Consume an activation token: set the user's password + flip status to
+   * active. Throttled aggressively to defang brute-force.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('activate/:token')
+  @HttpCode(HttpStatus.OK)
+  @Audit('auth.activate', { targetType: 'user' })
+  async completeActivation(
+    @Param('token') token: string,
+    @Body() dto: CompleteActivationDto,
+  ) {
+    return this.lifecycle.completeActivation(token, dto.password);
+  }
+
+  /**
+   * Forgot-password entry point. Always returns 204 regardless of whether
+   * the email matches — anti-enumeration. Real validation + token issuance
+   * happens inside the service.
+   */
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit('auth.forgot_password', { targetType: 'user' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.lifecycle.requestPasswordReset(dto.email);
+  }
+
+  /**
+   * Consume a password-reset token: set new password + revoke all live
+   * refresh tokens for the account.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('reset-password/:token')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit('auth.reset_password', { targetType: 'user' })
+  async resetPassword(
+    @Param('token') token: string,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    await this.lifecycle.resetPassword(token, dto.password);
+  }
 
   @Public()
   @Post('register-tenant')
@@ -72,6 +140,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @AllowSuspended()
   @Audit('auth.logout')
   async logout(@CurrentUser() user: JwtPayload, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(user.sub);
@@ -80,6 +149,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @AllowSuspended()
   me(@CurrentUser() user: JwtPayload) {
     return this.auth.getMe(user.sub);
   }

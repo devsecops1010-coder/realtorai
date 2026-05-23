@@ -16,9 +16,18 @@ datasource db {
 enum UserRole {
   platform_owner
   platform_admin
+  ceo
+  deputy_ceo
+  district_manager
+  branch_manager
   office_owner
   office_manager
+  team_lead
   realtor
+  mortgage_advisor
+  marketing_manager
+  secretary
+  accountant
   viewer
 }
 
@@ -239,57 +248,159 @@ model ContactRequest {
 }
 
 model Tenant {
-  id        String       @id @default(uuid())
-  name      String
-  status    TenantStatus @default(trial)
-  plan      String       @default("starter")
+  id                  String       @id @default(uuid())
+  name                String
+  status              TenantStatus @default(trial)
+  // `plan` is a free-text legacy field that pre-dates the PlanCatalog FK below.
+  // New code should populate `planCatalogId` and treat `plan` as a denormalized
+  // slug copy for read-only display. Both stay in sync via AdminService.
+  plan                String       @default("starter")
+  planCatalogId       String?
+  planCatalog         PlanCatalog? @relation(fields: [planCatalogId], references: [id], onDelete: SetNull)
   // Billing (per spec section 21) — all in ILS agorot or count.
-  setupFeeIls           Int     @default(0)
-  monthlyPlanIls        Int     @default(0)
-  includedMessages      Int     @default(0)
-  includedCallMinutes   Int     @default(0)
-  extraMessageIls       Decimal @default(0) @db.Decimal(8, 2)
-  extraCallMinuteIls    Decimal @default(0) @db.Decimal(8, 2)
-  successFeePct         Decimal @default(0) @db.Decimal(5, 2)
+  setupFeeIls         Int          @default(0)
+  monthlyPlanIls      Int          @default(0)
+  includedMessages    Int          @default(0)
+  includedCallMinutes Int          @default(0)
+  extraMessageIls     Decimal      @default(0) @db.Decimal(8, 2)
+  extraCallMinuteIls  Decimal      @default(0) @db.Decimal(8, 2)
+  successFeePct       Decimal      @default(0) @db.Decimal(5, 2)
   // Hard cap on USD spent on LLM calls per calendar month. 0 = unlimited.
   // Enforced by BillingService.checkLlmBudget before LlmRouterService.chat().
-  monthlyLlmBudgetUsd   Decimal @default(0) @db.Decimal(10, 4)
-  billingNotes          String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  monthlyLlmBudgetUsd Decimal      @default(0) @db.Decimal(10, 4)
+  billingNotes        String?
+  // Suspension metadata — written by AdminService.suspendTenant / reactivate.
+  // The hard enforcement lives in TenantStatusGuard which gates every non-
+  // exempt request on `status === 'suspended'`. Fields here are denormalized
+  // for the admin UI (so it doesn't have to dig through AuditLog every time).
+  suspendedAt         DateTime?
+  suspendedReason     String?
+  suspendedByUserId   String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  offices            Office[]
-  users              User[]
-  auditLogs          AuditLog[]
-  optOuts            OptOut[]
-  leads              Lead[]
-  properties         Property[]
-  conversations      Conversation[]
-  messages           Message[]
-  tasks              Task[]
-  agents             Agent[]
-  agentConfigs       AgentConfig[]
-  usageEvents        UsageEvent[]
-  notifications      Notification[]
-  mortgageAdvisors   MortgageAdvisor[]
-  mortgageProfiles   MortgageProfile[]
-  mortgageReferrals  MortgageReferral[]
+  offices           Office[]
+  users             User[]
+  auditLogs         AuditLog[]
+  optOuts           OptOut[]
+  leads             Lead[]
+  properties        Property[]
+  conversations     Conversation[]
+  messages          Message[]
+  tasks             Task[]
+  agents            Agent[]
+  agentConfigs      AgentConfig[]
+  usageEvents       UsageEvent[]
+  notifications     Notification[]
+  mortgageAdvisors  MortgageAdvisor[]
+  mortgageProfiles  MortgageProfile[]
+  mortgageReferrals MortgageReferral[]
+  networks          Network[]
+  districts         District[]
+  branches          Branch[]
+  signDocuments     SignDocument[]
+  webhookEndpoints  WebhookEndpoint[]
+  webhookDeliveries WebhookDelivery[]
 
+  @@index([planCatalogId])
   @@map("tenants")
 }
 
+// ---------------------------------------------------------------------------
+// Organizational hierarchy: Network → District → Branch → Office
+// Backwards-compatible: ALL fields are nullable on Office, so existing single-
+// office tenants don't need to fill in any of them. Multi-branch tenants
+// (e.g. a chain of franchises) populate the hierarchy and gain scoping for
+// district_manager / branch_manager roles.
+// ---------------------------------------------------------------------------
+
+model Network {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  districts District[]
+  branches  Branch[]
+  offices   Office[]
+
+  @@index([tenantId])
+  @@map("networks")
+}
+
+model District {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  networkId String?
+  network   Network? @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  name      String
+  region    String? // e.g. "מרכז", "צפון" — free text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches Branch[]
+  offices  Office[]
+
+  @@index([tenantId])
+  @@index([networkId])
+  @@map("districts")
+}
+
+model Branch {
+  id         String    @id @default(uuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  networkId  String?
+  network    Network?  @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  districtId String?
+  district   District? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  name       String
+  city       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  offices Office[]
+
+  @@index([tenantId])
+  @@index([districtId])
+  @@index([networkId])
+  @@map("branches")
+}
+
 model Office {
-  id             String       @id @default(uuid())
-  tenantId       String
-  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name           String
-  city           String?
-  areas          String[]     @default([])
-  phone          String?
-  whatsappNumber String?
-  status         OfficeStatus @default(active)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                  String       @id @default(uuid())
+  tenantId            String
+  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Optional org-chart links. NULL on single-office tenants. When set, the
+  // ScopingService grants visibility to the matching branch/district/network
+  // managers without changing tenant scoping (tenantId is the hard wall).
+  branchId            String?
+  branch              Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  districtId          String?
+  district            District?    @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  networkId           String?
+  network             Network?     @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  name                String
+  city                String?
+  // Legacy free-text area list. Kept for backward-compat — new code writes to
+  // the OfficeArea junction below. A future migration will drop this column.
+  areas               String[]     @default([])
+  phone               String?
+  whatsappNumber      String?
+  status              OfficeStatus @default(active)
+  // Inactivation metadata — set by AdminService.deactivateOffice. The hard
+  // enforcement lives in OfficeStatusGuard. status=inactive blocks every
+  // request that requires officeId scoping (but leaves tenant-level routes
+  // free, since other offices in the same tenant may still be active).
+  inactivatedAt       DateTime?
+  inactivatedReason   String?
+  inactivatedByUserId String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   users         User[]
   leads         Lead[]
@@ -299,9 +410,86 @@ model Office {
   agents        Agent[]
   usageEvents   UsageEvent[]
   notifications Notification[]
+  areaLinks     OfficeArea[]
 
   @@index([tenantId])
+  @@index([branchId])
+  @@index([districtId])
+  @@index([networkId])
   @@map("offices")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog tables — globally-shared lookup data (not per-tenant). Maintained by
+// platform_admin via /admin/catalog/* endpoints. Tenants reference them via
+// FKs (Tenant.planCatalogId, OfficeArea.areaId).
+// ---------------------------------------------------------------------------
+
+model AreaCatalog {
+  id        String   @id @default(uuid())
+  // Stable slug — never changes after creation even if nameHe is corrected.
+  // External integrations (CSV imports, future API) anchor on slug.
+  slug      String   @unique
+  nameHe    String
+  nameEn    String?
+  // Coarse region for grouping in selects ("מרכז" / "צפון" / "דרום" / ...).
+  region    String?
+  // Soft-delete: keep history but hide from new selects.
+  active    Boolean  @default(true)
+  // Lower numbers float to the top of the cmdk multi-select.
+  sortOrder Int      @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offices OfficeArea[]
+
+  @@index([active, sortOrder])
+  @@map("area_catalog")
+}
+
+model OfficeArea {
+  officeId  String
+  areaId    String
+  office    Office      @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  area      AreaCatalog @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@id([officeId, areaId])
+  @@index([areaId])
+  @@map("office_areas")
+}
+
+model PlanCatalog {
+  id                  String    @id @default(uuid())
+  slug                String    @unique
+  nameHe              String
+  nameEn              String?
+  tagline             String?
+  // Default billing values applied when a tenant is assigned this plan. The
+  // AdminService overwrites the matching Tenant fields, so subsequent edits
+  // to the plan don't retro-actively change existing tenants.
+  setupFeeIls         Int       @default(0)
+  monthlyPlanIls      Int       @default(0)
+  includedMessages    Int       @default(0)
+  includedCallMinutes Int       @default(0)
+  monthlyLlmBudgetUsd Decimal   @default(0) @db.Decimal(10, 4)
+  extraMessageIls     Decimal   @default(0) @db.Decimal(8, 2)
+  extraCallMinuteIls  Decimal   @default(0) @db.Decimal(8, 2)
+  successFeePct       Decimal   @default(0) @db.Decimal(5, 2)
+  // Feature toggles (sign module, AI tier, branding, etc). Schema-less JSON
+  // because the feature surface grows fast and we don't want a migration for
+  // each new flag. UI knows the shape.
+  features            Json      @default("{}")
+  publishedAt         DateTime?
+  active              Boolean   @default(true)
+  sortOrder           Int       @default(100)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenants Tenant[]
+
+  @@index([active, sortOrder])
+  @@map("plan_catalog")
 }
 
 model User {
@@ -320,14 +508,48 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  refreshTokens RefreshToken[]
-  assignedLeads Lead[]         @relation("LeadAssignee")
-  assignedTasks Task[]         @relation("TaskAssignee")
-  notifications Notification[]
+  refreshTokens         RefreshToken[]
+  activationTokens      ActivationToken[]
+  passwordResetTokens   PasswordResetToken[]
+  assignedLeads         Lead[]               @relation("LeadAssignee")
+  assignedTasks         Task[]               @relation("TaskAssignee")
+  notifications         Notification[]
+  signDocumentsUploaded SignDocument[]       @relation("SignDocumentsUploaded")
 
   @@unique([tenantId, email])
   @@index([tenantId, officeId])
   @@map("users")
+}
+
+// One-time token sent to invited users to set their initial password and
+// activate their account. Hashed at rest (same pattern as RefreshToken) so a
+// leaked DB row can't be replayed.
+model ActivationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("activation_tokens")
+}
+
+// One-time token issued by POST /auth/forgot-password. Short TTL (1h) and
+// single-use. Hash-only storage, same as activation tokens.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model RefreshToken {
@@ -399,10 +621,10 @@ model Lead {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  conversations    Conversation[]
-  tasks            Task[]
-  properties       Property[]
-  mortgageProfile  MortgageProfile?
+  conversations   Conversation[]
+  tasks           Task[]
+  properties      Property[]
+  mortgageProfile MortgageProfile?
 
   @@index([tenantId, officeId])
   @@index([tenantId, status])
@@ -432,33 +654,33 @@ model MortgageAdvisor {
 }
 
 model MortgageProfile {
-  id                        String            @id @default(uuid())
-  tenantId                  String
-  tenant                    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  leadId                    String            @unique
-  lead                      Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId   String @unique
+  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   // Minimal financial info — no documents, no sensitive IDs per spec section 29.
-  estimatedPrice            Int?     // budget for the property
-  estimatedEquity           Int?     // הון עצמי משוער
-  hasPreApproval            Boolean  @default(false)
-  preApprovalAmount         Int?
-  preApprovalBank           String?  // free text, no validation
-  monthlyIncome             Int?     // optional
+  estimatedPrice    Int? // budget for the property
+  estimatedEquity   Int? // הון עצמי משוער
+  hasPreApproval    Boolean @default(false)
+  preApprovalAmount Int?
+  preApprovalBank   String? // free text, no validation
+  monthlyIncome     Int? // optional
 
   // Status and score
-  status                    MortgageStatus    @default(unknown)
-  readinessScore            Int?     // 0-100
-  readiness                 MortgageReadiness @default(unknown)
+  status         MortgageStatus    @default(unknown)
+  readinessScore Int? // 0-100
+  readiness      MortgageReadiness @default(unknown)
 
   // Consent — required before sharing with any advisor
-  consentToShareWithAdvisor Boolean  @default(false)
+  consentToShareWithAdvisor Boolean   @default(false)
   consentTimestamp          DateTime?
   consentText               String?
 
-  notes                     String?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   referrals MortgageReferral[]
 
@@ -536,18 +758,18 @@ model Agent {
 }
 
 model AgentConfig {
-  id            String   @id @default(uuid())
-  agentId       String
-  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  prompt        String
-  rules         Json     @default("{}")
-  tools         Json     @default("[]")
-  handoffRules  Json     @default("{}")
-  version       Int      @default(1)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  agentId      String
+  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prompt       String
+  rules        Json     @default("{}")
+  tools        Json     @default("[]")
+  handoffRules Json     @default("{}")
+  version      Int      @default(1)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
   @@index([agentId, isActive])
   @@index([tenantId, agentId])
@@ -598,21 +820,21 @@ model Message {
 }
 
 model Notification {
-  id          String               @id @default(uuid())
-  tenantId    String
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  officeId    String?
-  office      Office?              @relation(fields: [officeId], references: [id], onDelete: SetNull)
-  userId      String?
-  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  type        NotificationType
-  severity    NotificationSeverity @default(info)
-  title       String
-  body        String?
-  link        String?
-  metadata    Json?
-  readAt      DateTime?
-  createdAt   DateTime             @default(now())
+  id        String               @id @default(uuid())
+  tenantId  String
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId  String?
+  office    Office?              @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      NotificationType
+  severity  NotificationSeverity @default(info)
+  title     String
+  body      String?
+  link      String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
 
   @@index([tenantId, userId, readAt, createdAt])
   @@index([tenantId, type, createdAt])
@@ -620,19 +842,19 @@ model Notification {
 }
 
 model UsageEvent {
-  id            String         @id @default(uuid())
-  tenantId      String
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  officeId      String?
-  office        Office?        @relation(fields: [officeId], references: [id], onDelete: SetNull)
-  agentId       String?
+  id             String         @id @default(uuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId       String?
+  office         Office?        @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  agentId        String?
   conversationId String?
-  type          UsageEventType
-  provider      String? // "groq", "anthropic", "gemini", "twilio", "meta", "360dialog", "mock"
-  quantity      Int            @default(1)
-  costEstimate  Decimal?       @db.Decimal(12, 6)
-  metadata      Json?
-  createdAt     DateTime       @default(now())
+  type           UsageEventType
+  provider       String? // "groq", "anthropic", "gemini", "twilio", "meta", "360dialog", "mock"
+  quantity       Int            @default(1)
+  costEstimate   Decimal?       @db.Decimal(12, 6)
+  metadata       Json?
+  createdAt      DateTime       @default(now())
 
   @@index([tenantId, createdAt])
   @@index([tenantId, type, createdAt])
@@ -641,29 +863,159 @@ model UsageEvent {
 }
 
 model Task {
-  id              String            @id @default(uuid())
-  tenantId        String
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  officeId        String
-  office          Office            @relation(fields: [officeId], references: [id], onDelete: Cascade)
-  leadId          String?
-  lead            Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  assignedUserId  String?
-  assignedUser    User?             @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  type            TaskType          @default(custom)
-  title           String
-  description     String?
-  status          TaskStatus        @default(open)
-  dueAt           DateTime?
-  createdByType   TaskCreatedByType @default(user)
-  createdById     String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  completedAt     DateTime?
+  id             String            @id @default(uuid())
+  tenantId       String
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId       String
+  office         Office            @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  assignedUserId String?
+  assignedUser   User?             @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  type           TaskType          @default(custom)
+  title          String
+  description    String?
+  status         TaskStatus        @default(open)
+  dueAt          DateTime?
+  createdByType  TaskCreatedByType @default(user)
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  completedAt    DateTime?
 
   @@index([tenantId, officeId, status])
   @@index([tenantId, assignedUserId, status])
   @@index([tenantId, leadId])
   @@index([tenantId, dueAt])
   @@map("tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Sign module — PDF signing platform integrated into realtorai. Documents
+// belong to a Tenant (instead of a separate Organization model) and reuse
+// the same User table. AuditLog uses the existing `action`/`targetType`
+// pattern with targetType='sign_document' or 'sign_request'.
+// ---------------------------------------------------------------------------
+
+enum SignDocumentStatus {
+  draft // uploaded, no signature_request yet
+  sent // signature_request created, email out
+  viewed // signer opened /sign/:token
+  otp_verified // signer passed OTP step
+  signed // submission complete, signed PDF stored
+  declined // signer rejected explicitly (Phase 2)
+  expired // token TTL elapsed without signing
+  cancelled // tenant admin pulled the request
+}
+
+enum WebhookEndpointStatus {
+  active
+  disabled
+}
+
+enum WebhookDeliveryStatus {
+  pending
+  delivered
+  failed
+  dead
+}
+
+model SignDocument {
+  id                 String             @id @default(uuid())
+  tenantId           String             @map("tenant_id")
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploadedByUserId   String             @map("uploaded_by_user_id")
+  uploadedBy         User               @relation("SignDocumentsUploaded", fields: [uploadedByUserId], references: [id])
+  originalFileName   String             @map("original_file_name")
+  originalFilePath   String             @map("original_file_path")
+  signedFilePath     String?            @map("signed_file_path")
+  documentHash       String             @map("document_hash") // SHA-256 of original bytes
+  signedDocumentHash String?            @map("signed_document_hash") // SHA-256 of signed bytes
+  status             SignDocumentStatus @default(draft)
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  signatureRequest SignSignatureRequest?
+  signature        SignSignature?
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@map("sign_documents")
+}
+
+model SignSignatureRequest {
+  id               String             @id @default(uuid())
+  documentId       String             @unique @map("document_id")
+  document         SignDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signerName       String             @map("signer_name")
+  signerEmail      String             @map("signer_email")
+  signerPhone      String?            @map("signer_phone")
+  signingTokenHash String             @unique @map("signing_token_hash")
+  tokenExpiresAt   DateTime           @map("token_expires_at")
+  otpHash          String?            @map("otp_hash")
+  otpExpiresAt     DateTime?          @map("otp_expires_at")
+  otpAttempts      Int                @default(0) @map("otp_attempts")
+  otpVerifiedAt    DateTime?          @map("otp_verified_at")
+  signedAt         DateTime?          @map("signed_at")
+  status           SignDocumentStatus @default(sent)
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  signature SignSignature?
+
+  @@index([signingTokenHash])
+  @@map("sign_signature_requests")
+}
+
+model SignSignature {
+  id                 String               @id @default(uuid())
+  documentId         String               @unique @map("document_id")
+  document           SignDocument         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signatureRequestId String               @unique @map("signature_request_id")
+  signatureRequest   SignSignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
+  signatureImagePath String               @map("signature_image_path")
+  signerName         String               @map("signer_name")
+  signerEmail        String               @map("signer_email")
+  ipAddress          String?              @map("ip_address")
+  userAgent          String?              @map("user_agent")
+  signedAt           DateTime             @default(now()) @map("signed_at")
+
+  @@map("sign_signatures")
+}
+
+model WebhookEndpoint {
+  id          String                @id @default(uuid())
+  tenantId    String                @map("tenant_id")
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  url         String
+  secret      String // HMAC-SHA256 signing secret
+  eventFilter String[]              @default([]) @map("event_filter")
+  status      WebhookEndpointStatus @default(active)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id               String                @id @default(uuid())
+  tenantId         String                @map("tenant_id")
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  endpointId       String                @map("endpoint_id")
+  endpoint         WebhookEndpoint       @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  eventType        String                @map("event_type")
+  payload          Json
+  status           WebhookDeliveryStatus @default(pending)
+  attempts         Int                   @default(0)
+  lastResponseCode Int?                  @map("last_response_code")
+  lastError        String?               @map("last_error")
+  nextAttemptAt    DateTime?             @map("next_attempt_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([nextAttemptAt])
+  @@map("webhook_deliveries")
 }
