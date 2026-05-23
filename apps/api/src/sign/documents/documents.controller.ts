@@ -88,6 +88,47 @@ export class SignDocumentsController {
     res.send(buffer);
   }
 
+  /**
+   * Streams the PDF inline (browser-renderable) instead of as an attachment.
+   * Used by the in-app preview component on /documents/[id]. We audit this
+   * as a `viewed` event — distinct from `downloaded` so we can tell whether
+   * a user just glanced at the doc vs. saved a copy.
+   *
+   * Pass `?signed=true` to preview the signed version. Defaults to original.
+   */
+  @Get(':id/inline')
+  async inline(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('signed') signed: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const wantSigned = signed === 'true' || signed === '1';
+    const { fileName, buffer } = await this.documents.download(user.tenantId, id, {
+      signed: wantSigned,
+    });
+    await this.documents.recordAudit({
+      tenantId: user.tenantId,
+      actorType: 'user',
+      actorId: user.sub,
+      action: 'sign.document.viewed',
+      targetType: 'sign_document',
+      targetId: id,
+      ipAddress: req.ip,
+      userAgent: req.header('user-agent') ?? undefined,
+      metadata: { variant: wantSigned ? 'signed' : 'original' },
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    // `inline` makes the browser render in the iframe rather than prompt
+    // for download. The filename is still attached for the rare case the
+    // user opts to save via the PDF viewer's own controls.
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    // No caching — every preview re-fetches so revocation/cancel is honored.
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buffer);
+  }
+
   @Get(':id/download-signed')
   async downloadSigned(
     @CurrentUser() user: JwtPayload,
