@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { LeadsService } from './leads.service';
+import { LeadInsightsService } from './lead-insights.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { AssignLeadDto } from './dto/assign-lead.dto';
@@ -22,7 +23,10 @@ import { Audit } from '../common/decorators/audit.decorator';
 
 @Controller('leads')
 export class LeadsController {
-  constructor(private readonly leads: LeadsService) {}
+  constructor(
+    private readonly leads: LeadsService,
+    private readonly insights: LeadInsightsService,
+  ) {}
 
   @Get()
   list(@Query() query: ListLeadsQuery) {
@@ -62,5 +66,30 @@ export class LeadsController {
   @Audit('lead.opt_out', { targetType: 'lead' })
   optOut(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: OptOutLeadDto) {
     return this.leads.optOut(id, dto);
+  }
+
+  /**
+   * Generate AI insights for a lead on-demand. POST rather than GET so we can
+   * (a) audit each generation against the lead, (b) charge the LLM call to
+   * the requesting user's tenant via the request context, and (c) avoid CDN
+   * caching of what is effectively a write to UsageEvent.
+   */
+  @Post(':id/insights')
+  @HttpCode(HttpStatus.OK)
+  // Generating an insight isn't a state change on the lead itself but it is
+  // a billable LLM call, so we restrict to staff roles that can act on it.
+  @Roles(
+    UserRole.office_owner,
+    UserRole.office_manager,
+    UserRole.realtor,
+    UserRole.team_lead,
+    UserRole.branch_manager,
+    UserRole.district_manager,
+    UserRole.ceo,
+    UserRole.deputy_ceo,
+  )
+  @Audit('lead.insights_generated', { targetType: 'lead' })
+  generateInsights(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.insights.generate(id);
   }
 }

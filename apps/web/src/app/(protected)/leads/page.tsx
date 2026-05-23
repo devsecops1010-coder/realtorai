@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { LayoutGrid, Table as TableIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
+import { LeadsKanban } from '@/components/leads/leads-kanban';
 import { formatDate } from '@/lib/utils';
 import type { Lead, LeadStatus, LeadTemperature, Paginated } from '@/lib/types';
 
@@ -38,6 +39,8 @@ function LeadsPageInner() {
   const status = searchParams.get('status') as LeadStatus | null;
   const temperature = searchParams.get('temperature') as LeadTemperature | null;
   const assignedUserId = searchParams.get('assignedUserId');
+  // URL-driven view toggle so a bookmarked Kanban stays Kanban on reload.
+  const view = (searchParams.get('view') === 'kanban' ? 'kanban' : 'table') as 'kanban' | 'table';
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
@@ -93,7 +96,37 @@ function LeadsPageInner() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">לידים</h1>
-        <Button onClick={() => router.push('/leads/new')}>ליד חדש</Button>
+        <div className="flex items-center gap-2">
+          {/* Inline view switcher — preserves the rest of the URL (filters,
+              search params) so toggling doesn't drop the active filter set. */}
+          <div className="inline-flex rounded-md border bg-card p-0.5">
+            <Button
+              variant={view === 'table' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => {
+                const p = new URLSearchParams(searchParams.toString());
+                p.delete('view');
+                router.push(`/leads${p.toString() ? `?${p.toString()}` : ''}`);
+              }}
+            >
+              <TableIcon className="h-3.5 w-3.5" /> טבלה
+            </Button>
+            <Button
+              variant={view === 'kanban' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 gap-1.5"
+              onClick={() => {
+                const p = new URLSearchParams(searchParams.toString());
+                p.set('view', 'kanban');
+                router.push(`/leads?${p.toString()}`);
+              }}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Kanban
+            </Button>
+          </div>
+          <Button onClick={() => router.push('/leads/new')}>ליד חדש</Button>
+        </div>
       </div>
 
       {hasFilter && (
@@ -133,60 +166,77 @@ function LeadsPageInner() {
         </Button>
       </form>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>שם</TableHead>
-              <TableHead>טלפון</TableHead>
-              <TableHead>כוונה</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead>טמפ'</TableHead>
-              <TableHead>הוקצה ל</TableHead>
-              <TableHead>נוצר</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
+      {view === 'kanban' ? (
+        loading ? (
+          <p className="text-center text-muted-foreground py-12">טוען...</p>
+        ) : leads.length === 0 ? (
+          <p className="text-center text-muted-foreground py-12">אין לידים להצגה</p>
+        ) : (
+          <LeadsKanban
+            leads={leads}
+            onUpdate={(updated) =>
+              // Splice the updated lead back in by id. Keeping the array
+              // reference shape stable avoids re-fetching after a drop.
+              setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+            }
+          />
+        )
+      ) : (
+        <div className="rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  טוען...
-                </TableCell>
+                <TableHead>שם</TableHead>
+                <TableHead>טלפון</TableHead>
+                <TableHead>כוונה</TableHead>
+                <TableHead>סטטוס</TableHead>
+                <TableHead>טמפ'</TableHead>
+                <TableHead>הוקצה ל</TableHead>
+                <TableHead>נוצר</TableHead>
               </TableRow>
-            )}
-            {!loading && leads.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  אין לידים להצגה
-                </TableCell>
-              </TableRow>
-            )}
-            {leads.map((l) => (
-              <TableRow
-                key={l.id}
-                className="cursor-pointer"
-                onClick={() => router.push(`/leads/${l.id}`)}
-              >
-                <TableCell>
-                  <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
-                    {l.fullName || '—'}
-                  </Link>
-                </TableCell>
-                <TableCell dir="ltr">{l.phone || '—'}</TableCell>
-                <TableCell>{l.intent}</TableCell>
-                <TableCell>
-                  <StatusBadge value={l.status} />
-                </TableCell>
-                <TableCell>
-                  <TempBadge value={l.temperature} />
-                </TableCell>
-                <TableCell>{l.assignedUser?.name || '—'}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{formatDate(l.createdAt)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    טוען...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && leads.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    אין לידים להצגה
+                  </TableCell>
+                </TableRow>
+              )}
+              {leads.map((l) => (
+                <TableRow
+                  key={l.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/leads/${l.id}`)}
+                >
+                  <TableCell>
+                    <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
+                      {l.fullName || '—'}
+                    </Link>
+                  </TableCell>
+                  <TableCell dir="ltr">{l.phone || '—'}</TableCell>
+                  <TableCell>{l.intent}</TableCell>
+                  <TableCell>
+                    <StatusBadge value={l.status} />
+                  </TableCell>
+                  <TableCell>
+                    <TempBadge value={l.temperature} />
+                  </TableCell>
+                  <TableCell>{l.assignedUser?.name || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDate(l.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <p className="text-sm text-muted-foreground">סה"כ: {total}</p>
     </div>

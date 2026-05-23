@@ -48,6 +48,16 @@ export const envSchema = z.object({
   // Monitoring (optional)
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
+
+  // VAPID for Web Push. All three must be set together; the schema doesn't
+  // enforce that here because push is a non-critical feature — if any are
+  // missing PushService just no-ops. Generate via:
+  //   node -e "const w=require('web-push');console.log(w.generateVAPIDKeys())"
+  // VAPID_SUBJECT must be a `mailto:` or `https:` URL identifying the app
+  // owner — browsers use it when chasing down abusive push senders.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV !== 'production') return;
 

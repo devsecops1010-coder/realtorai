@@ -296,6 +296,7 @@ model Tenant {
   agentConfigs      AgentConfig[]
   usageEvents       UsageEvent[]
   notifications     Notification[]
+  pushSubscriptions PushSubscription[]
   mortgageAdvisors  MortgageAdvisor[]
   mortgageProfiles  MortgageProfile[]
   mortgageReferrals MortgageReferral[]
@@ -497,27 +498,27 @@ model PlanCatalog {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  tenantId     String
-  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  officeId     String?
-  office       Office?    @relation(fields: [officeId], references: [id], onDelete: SetNull)
-  name         String
-  email        String
-  phone        String?
-  role         UserRole   @default(realtor)
-  status       UserStatus @default(invited)
-  passwordHash String?
-  lastLoginAt  DateTime?
+  id                String     @id @default(uuid())
+  tenantId          String
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  officeId          String?
+  office            Office?    @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  name              String
+  email             String
+  phone             String?
+  role              UserRole   @default(realtor)
+  status            UserStatus @default(invited)
+  passwordHash      String?
+  lastLoginAt       DateTime?
   // TOTP-based 2FA. Enabled when totpSecret is non-null AND totpEnabledAt
   // is set. The secret is stored as base32 (otplib default). We don't
   // encrypt it at rest yet — column-level encryption is a Phase 2 task.
   // Recovery codes (hashed) live separately in totpRecoveryCodes JSON.
-  totpSecret         String?
-  totpEnabledAt      DateTime?
-  totpRecoveryCodes  Json? // string[] of bcrypt hashes; nullable until enrolled
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  totpSecret        String?
+  totpEnabledAt     DateTime?
+  totpRecoveryCodes Json? // string[] of bcrypt hashes; nullable until enrolled
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   refreshTokens         RefreshToken[]
   activationTokens      ActivationToken[]
@@ -526,6 +527,7 @@ model User {
   assignedTasks         Task[]               @relation("TaskAssignee")
   notifications         Notification[]
   signDocumentsUploaded SignDocument[]       @relation("SignDocumentsUploaded")
+  pushSubscriptions     PushSubscription[]
 
   @@unique([tenantId, email])
   @@index([tenantId, officeId])
@@ -1081,6 +1083,32 @@ model WebhookDelivery {
 // Mercantile), we additionally store an `acroFormMap` so we can fill the
 // existing fields by name instead of overlaying text.
 // ---------------------------------------------------------------------------
+
+// Web Push subscription. One row per (user, endpoint) — the browser issues a
+// unique endpoint per device + per site, so a single user can have many.
+// We store the raw subscription JSON (endpoint, keys.p256dh, keys.auth) so
+// the worker can call web-push without an extra hop. tenantId is denormalized
+// from User for fast tenant-scoped delete on tenant suspend.
+model PushSubscription {
+  id         String    @id @default(uuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  // The same endpoint may legitimately get a new key-pair when the browser
+  // re-issues — we upsert on (userId, endpoint) so the row updates instead
+  // of creating a stale duplicate.
+  @@unique([userId, endpoint])
+  @@index([tenantId])
+  @@map("push_subscriptions")
+}
 
 model BankAuthTemplate {
   id          String   @id @default(uuid())

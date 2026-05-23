@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { NotificationSeverity, NotificationType, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestContext } from '../common/context/request-context';
+import { PushService } from '../push/push.service';
 
 export interface CreateNotificationInput {
   tenantId: string;
@@ -18,7 +19,13 @@ export interface CreateNotificationInput {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  // PushService is optional — if the PushModule is loaded it gets injected;
+  // otherwise broadcast() still works and just doesn't push. Marking it
+  // optional avoids a circular-init headache during boot.
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async broadcast(input: CreateNotificationInput): Promise<number> {
     let targets = input.userIds ?? [];
@@ -53,6 +60,30 @@ export class NotificationsService {
         metadata: (input.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
       })),
     });
+
+    // Push delivery — fire-and-forget per recipient. We only push for
+    // user-targeted notifications (no userId means the notification is a
+    // tenant-wide bell entry, not actionable per person).
+    //
+    // We only push for `alert` severity by default — the in-app bell already
+    // handles `info` events without needing to interrupt the user. Callers
+    // who want pushes for non-alert events can adjust severity.
+    if (this.push && (input.severity ?? NotificationSeverity.info) === NotificationSeverity.alert) {
+      const realTargets = targets.filter((t) => Boolean(t));
+      // No `await` — we don't want the orchestrator path (which calls broadcast)
+      // to block on browser push roundtrips. Errors are logged inside push.
+      Promise.all(
+        realTargets.map((userId) =>
+          this.push!.sendToUser(userId, {
+            title: input.title,
+            body: input.body ?? '',
+            url: input.link ?? '/dashboard',
+            tag: `${input.type}-${(input.metadata?.leadId as string | undefined) ?? userId}`,
+            data: input.metadata,
+          }),
+        ),
+      ).catch(() => undefined);
+    }
 
     return targets.length;
   }

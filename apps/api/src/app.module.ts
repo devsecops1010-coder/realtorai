@@ -36,6 +36,7 @@ import { OrgModule } from './org/org.module';
 import { SignModule } from './sign/sign.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { HealthModule } from './health/health.module';
+import { PushModule } from './push/push.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TenantStatusGuard } from './common/guards/tenant-status.guard';
@@ -102,12 +103,19 @@ import { EmailModule } from './email/email.module';
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) => [
-        {
-          ttl: config.get('AUTH_THROTTLE_TTL_MS', { infer: true }),
-          limit: config.get('AUTH_THROTTLE_LIMIT', { infer: true }) * 20, // global default
-        },
-      ],
+      useFactory: (config: ConfigService<Env, true>) => {
+        const isTest = config.get('NODE_ENV', { infer: true }) === 'test';
+        return [
+          {
+            ttl: config.get('AUTH_THROTTLE_TTL_MS', { infer: true }),
+            // E2E tests run dozens of register-tenant calls back-to-back.
+            // Bumping the global default by 50x in test mode keeps them green
+            // while still letting production reject obvious abuse.
+            limit:
+              config.get('AUTH_THROTTLE_LIMIT', { infer: true }) * (isTest ? 1000 : 20),
+          },
+        ];
+      },
     }),
     PrismaModule,
     EmailModule,
@@ -122,6 +130,7 @@ import { EmailModule } from './email/email.module';
     LlmModule,
     WhatsAppModule,
     NotificationsModule,
+    PushModule,
     BillingModule,
     AgentsModule,
     QueueModule,

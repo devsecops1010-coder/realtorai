@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
 import { SignatureRequestsCard } from '@/components/sign/signature-requests-card';
+import { AiInsightsCard } from '@/components/leads/ai-insights-card';
 import { formatDate } from '@/lib/utils';
 import type { Lead, LeadStatus, LeadTemperature } from '@/lib/types';
 
@@ -171,6 +172,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <IdentitySection lead={lead} onSaved={load} />
+
+      {/* AI insights — sits between the identity section and the activity
+          history so the user reads the recommendation before scanning the raw
+          conversations + tasks below it. */}
+      <AiInsightsCard leadId={lead.id} />
 
       <Card>
         <CardHeader>

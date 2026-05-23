@@ -244,13 +244,30 @@ export function Sidebar() {
         })()}
       </nav>
 
-      <div className="p-3 border-t">
+      <div className="p-3 border-t space-y-1">
         {user?.role === 'viewer' && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
             <Eye className="h-3.5 w-3.5" />
             צפייה בלבד
           </div>
         )}
+        {/* Per-user settings live under /account/*. Surfacing 2FA + push
+            here is enough — the sidebar isn't where we want a deep settings
+            menu. Adds horizontal divider above for visual separation. */}
+        <Link
+          href="/account/notifications"
+          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors ${pathname?.startsWith('/account/notifications') ? 'bg-accent' : ''}`}
+        >
+          <Bell className="h-4 w-4" />
+          העדפות התראות
+        </Link>
+        <Link
+          href="/account/2fa"
+          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors ${pathname?.startsWith('/account/2fa') ? 'bg-accent' : ''}`}
+        >
+          <Shield className="h-4 w-4" />
+          אבטחה (2FA)
+        </Link>
         <Button variant="ghost" className="w-full justify-start" onClick={logout}>
           <LogOut className="h-4 w-4 ml-2" />
           התנתקות

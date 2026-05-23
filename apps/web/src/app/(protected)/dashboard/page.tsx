@@ -35,6 +35,7 @@ import {
 } from '@/lib/role-workspace';
 import type { AuthUser, ReportsToday } from '@/lib/types';
 import { WORKSPACE_WIDGETS } from './layouts';
+import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard';
 
 interface StatDef {
   label: string;
@@ -209,6 +210,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* First-run wizard — self-gates via localStorage so re-renders are a no-op. */}
+      {user && <OnboardingWizard user={user} />}
       <section className="overflow-hidden rounded-lg border bg-card shadow-soft">
         <div className={cn('h-1 bg-gradient-to-l', workspace.tone)} />
         <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">

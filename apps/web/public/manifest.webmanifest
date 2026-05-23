@@ -1,0 +1,42 @@
+{
+  "name": "Realtorai",
+  "short_name": "Realtorai",
+  "description": "פלטפורמת AI לניהול לידים ונכסים למשרדי תיווך",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f0f23",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "לידים",
+      "short_name": "לידים",
+      "url": "/leads",
+      "description": "מעבר ישיר לרשימת הלידים"
+    },
+    {
+      "name": "ליד חדש",
+      "short_name": "+ ליד",
+      "url": "/leads/new",
+      "description": "הוספת ליד חדש"
+    },
+    {
+      "name": "משימות",
+      "short_name": "משימות",
+      "url": "/tasks",
+      "description": "משימות פתוחות"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
