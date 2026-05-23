@@ -59,6 +59,10 @@ export class MortgageService {
   async createAdvisor(dto: CreateAdvisorDto) {
     const data: Omit<Prisma.MortgageAdvisorUncheckedCreateInput, 'tenantId'> = {
       fullName: dto.fullName.trim(),
+      nationalId: dto.nationalId?.trim() || null,
+      licenseNumber: dto.licenseNumber?.trim() || null,
+      consultingCompany: dto.consultingCompany?.trim() || null,
+      consultingCompanyId: dto.consultingCompanyId?.trim() || null,
       company: dto.company ?? null,
       phone: dto.phone ?? null,
       email: dto.email?.toLowerCase().trim() ?? null,
@@ -75,6 +79,12 @@ export class MortgageService {
     if (!existing) throw new NotFoundException('Advisor not found');
     const data: Prisma.MortgageAdvisorUncheckedUpdateInput = {};
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
+    if (dto.nationalId !== undefined) data.nationalId = dto.nationalId.trim() || null;
+    if (dto.licenseNumber !== undefined) data.licenseNumber = dto.licenseNumber.trim() || null;
+    if (dto.consultingCompany !== undefined)
+      data.consultingCompany = dto.consultingCompany.trim() || null;
+    if (dto.consultingCompanyId !== undefined)
+      data.consultingCompanyId = dto.consultingCompanyId.trim() || null;
     if (dto.company !== undefined) data.company = dto.company;
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
@@ -134,6 +144,10 @@ export class MortgageService {
     if (dto.preApprovalAmount !== undefined) data.preApprovalAmount = dto.preApprovalAmount;
     if (dto.preApprovalBank !== undefined) data.preApprovalBank = dto.preApprovalBank;
     if (dto.monthlyIncome !== undefined) data.monthlyIncome = dto.monthlyIncome;
+    if (dto.coApplicantName !== undefined) data.coApplicantName = dto.coApplicantName || null;
+    if (dto.coApplicantNationalId !== undefined)
+      data.coApplicantNationalId = dto.coApplicantNationalId || null;
+    if (dto.coApplicantPhone !== undefined) data.coApplicantPhone = dto.coApplicantPhone || null;
     if (dto.notes !== undefined) data.notes = dto.notes;
 
     const wasPreApproved = existing.hasPreApproval;

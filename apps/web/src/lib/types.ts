@@ -83,6 +83,9 @@ export interface Lead {
   assignedUser?: { id: string; name: string } | null;
   source: string | null;
   fullName: string | null;
+  // Optional identity fields — used by bank-authorization letter generation.
+  nationalId: string | null;
+  streetAddress: string | null;
   phone: string | null;
   email: string | null;
   intent: LeadIntent;
@@ -183,6 +186,12 @@ export type ReferralStatus =
 export interface MortgageAdvisor {
   id: string;
   fullName: string;
+  // Optional fields used by bank-authorization letter generation. Stored
+  // once on the advisor and auto-populated into every future letter.
+  nationalId: string | null;
+  licenseNumber: string | null;
+  consultingCompany: string | null;
+  consultingCompanyId: string | null;
   company: string | null;
   phone: string | null;
   email: string | null;
@@ -207,6 +216,10 @@ export interface MortgageProfile {
   consentToShareWithAdvisor: boolean;
   consentTimestamp: string | null;
   consentText: string | null;
+  // Co-applicant (לווה 2 in bank auth forms) — typically spouse/partner.
+  coApplicantName: string | null;
+  coApplicantNationalId: string | null;
+  coApplicantPhone: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;

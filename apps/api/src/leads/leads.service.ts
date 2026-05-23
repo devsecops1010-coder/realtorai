@@ -96,11 +96,13 @@ export class LeadsService {
       assignedUserId: dto.assignedUserId ?? null,
       source: dto.source ?? 'manual',
       fullName: dto.fullName ?? null,
+      nationalId: dto.nationalId ?? null,
       phone: dto.phone ?? null,
       email: dto.email?.toLowerCase().trim() ?? null,
       intent: dto.intent ?? 'unknown',
       city: dto.city ?? null,
       area: dto.area ?? null,
+      streetAddress: dto.streetAddress ?? null,
       budgetMin: dto.budgetMin ?? null,
       budgetMax: dto.budgetMax ?? null,
       rooms: dto.rooms ?? null,
@@ -130,11 +132,13 @@ export class LeadsService {
     if (dto.assignedUserId !== undefined) data.assignedUserId = dto.assignedUserId;
     if (dto.source !== undefined) data.source = dto.source;
     if (dto.fullName !== undefined) data.fullName = dto.fullName;
+    if (dto.nationalId !== undefined) data.nationalId = dto.nationalId;
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
     if (dto.intent !== undefined) data.intent = dto.intent;
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.area !== undefined) data.area = dto.area;
+    if (dto.streetAddress !== undefined) data.streetAddress = dto.streetAddress;
     if (dto.budgetMin !== undefined) data.budgetMin = dto.budgetMin;
     if (dto.budgetMax !== undefined) data.budgetMax = dto.budgetMax;
     if (dto.rooms !== undefined) data.rooms = dto.rooms;

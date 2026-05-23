@@ -13,5 +13,11 @@ export class UpdateProfileDto {
   @IsOptional() @IsInt() @Min(0) readinessScore?: number;
   @IsOptional() @IsEnum(MortgageReadiness) readiness?: MortgageReadiness;
 
+  // Co-applicant (לווה 2 in bank auth forms) — typically the spouse/partner.
+  // Optional; absent for single-borrower mortgages.
+  @IsOptional() @IsString() @Length(2, 120) coApplicantName?: string;
+  @IsOptional() @IsString() @Length(5, 32) coApplicantNationalId?: string;
+  @IsOptional() @IsString() @Length(6, 32) coApplicantPhone?: string;
+
   @IsOptional() @IsString() @Length(0, 2000) notes?: string;
 }

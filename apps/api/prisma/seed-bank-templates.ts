@@ -89,52 +89,119 @@ const SEEDS: Seed[] = [
     acroFormMap: MERCANTILE_ACRO,
     notes: 'Same template as Discount (parent company). AcroForm-driven.',
   },
-  // ---- Banks without AcroForm: empty overlay, ready for calibration -------
+  // ----------------------------------------------------------------------------
+  // Banks without AcroForm: overlay placements derived from pdftotext -bbox
+  // label scans (see /tmp/calibrate-banks.ts). Coordinates are heuristic —
+  // each label was located, and we place the value 5-10pt to the left of
+  // the label's left edge with align='right' so the Hebrew text reads
+  // naturally toward the label. Calibration is "good enough to fill out the
+  // form" rather than pixel-perfect — admins can fine-tune via a future
+  // calibration UI or by editing this seed.
+  //
+  // Y values are in PDF-lib bottom-left coordinates (page_height - yMin - h).
+  // ----------------------------------------------------------------------------
   {
     bankSlug: 'hapoalim',
     bankNameHe: 'בנק הפועלים',
     bankNameEn: 'Bank Hapoalim',
     pdfPath: 'hapoalim.pdf',
-    overlay: { placements: [] },
+    overlay: {
+      placements: [
+        // Top borrower row — "שם" label at ~x=503, y(top)=130 → flippedY≈700
+        { key: 'borrower1_name', page: 0, x: 495, y: 702, fontSize: 10, align: 'right' },
+        { key: 'borrower1_id', page: 0, x: 260, y: 702, fontSize: 10, align: 'right' },
+        // Advisor row — "מסמיכים את" header at y~215 → flippedY≈614
+        { key: 'advisor_name', page: 0, x: 495, y: 600, fontSize: 10, align: 'right' },
+        { key: 'advisor_id', page: 0, x: 260, y: 600, fontSize: 10, align: 'right' },
+        { key: 'advisor_company_name', page: 0, x: 495, y: 580, fontSize: 10, align: 'right' },
+        { key: 'advisor_company_id', page: 0, x: 260, y: 580, fontSize: 10, align: 'right' },
+      ],
+    },
     acroFormMap: {},
-    notes: 'No AcroForm. Needs coordinate calibration.',
+    notes: 'Heuristic calibration based on label positions. Admin can fine-tune.',
   },
   {
     bankSlug: 'leumi',
     bankNameHe: 'בנק לאומי',
     bankNameEn: 'Bank Leumi',
     pdfPath: 'leumi.pdf',
-    overlay: { placements: [] },
+    overlay: {
+      placements: [
+        // Leumi inlines borrower into a single sentence:
+        // "אנו הח״מ ________ ת.ז. ________, ________ ת.ז. ________"
+        // The first blank starts at ~x=510, y=74 (top-line), flippedY≈760
+        { key: 'borrower1_name', page: 0, x: 470, y: 762, fontSize: 9, align: 'right' },
+        { key: 'borrower1_id', page: 0, x: 360, y: 762, fontSize: 9, align: 'right' },
+        // Advisor (חברת הייעוץ ___ ח.פ. ___) on line ~88
+        { key: 'advisor_company_name', page: 0, x: 350, y: 745, fontSize: 9, align: 'right' },
+        { key: 'advisor_company_id', page: 0, x: 220, y: 745, fontSize: 9, align: 'right' },
+        { key: 'advisor_name', page: 0, x: 470, y: 727, fontSize: 9, align: 'right' },
+        { key: 'advisor_id', page: 0, x: 360, y: 727, fontSize: 9, align: 'right' },
+      ],
+    },
     acroFormMap: {},
-    notes: 'No AcroForm. Uses "ייפוי כוח" terminology. Needs calibration.',
+    notes:
+      'Inline-paragraph fill style ("אנו הח״מ ___ ת.ז. ___"). Heuristic calibration of underscore blanks.',
   },
   {
     bankSlug: 'mizrahi',
     bankNameHe: 'בנק מזרחי טפחות',
     bankNameEn: 'Mizrahi Tefahot Bank',
     pdfPath: 'mizrahi.pdf',
-    overlay: { placements: [] },
+    overlay: {
+      placements: [
+        // Mizrahi has a borrower table near the top of page 1, columns:
+        // שם | מספר מזהה | פרטי התקשרות (approximately).
+        { key: 'borrower1_name', page: 0, x: 495, y: 695, fontSize: 10, align: 'right' },
+        { key: 'borrower1_id', page: 0, x: 330, y: 695, fontSize: 10, align: 'right' },
+        { key: 'borrower1_phone', page: 0, x: 180, y: 695, fontSize: 10, align: 'right' },
+        // Advisor (single row)
+        { key: 'advisor_name', page: 0, x: 495, y: 620, fontSize: 10, align: 'right' },
+        { key: 'advisor_id', page: 0, x: 250, y: 620, fontSize: 10, align: 'right' },
+      ],
+    },
     acroFormMap: {},
-    notes: 'No AcroForm. Uses "כתב הסכמה" wording. Needs calibration.',
+    notes: 'Heuristic calibration based on label positions.',
   },
   {
     bankSlug: 'jerusalem',
     bankNameHe: 'בנק ירושלים',
     bankNameEn: 'Bank of Jerusalem',
     pdfPath: 'jerusalem.pdf',
-    overlay: { placements: [] },
+    overlay: {
+      placements: [
+        // Jerusalem has a wide 5-column table at the top:
+        // שם | מספר ת.ז. | כתובת מגורים | מס׳ טלפון | E-Mail
+        { key: 'borrower1_name', page: 0, x: 540, y: 685, fontSize: 10, align: 'right' },
+        { key: 'borrower1_id', page: 0, x: 420, y: 685, fontSize: 10, align: 'right' },
+        { key: 'borrower1_address', page: 0, x: 320, y: 685, fontSize: 9, align: 'right' },
+        { key: 'borrower1_phone', page: 0, x: 190, y: 685, fontSize: 10, align: 'right' },
+        { key: 'borrower1_email', page: 0, x: 120, y: 685, fontSize: 9, align: 'right' },
+        // Advisor: "מסמיכים את" row + columns שם | ת.ז.
+        { key: 'advisor_name', page: 0, x: 500, y: 615, fontSize: 10, align: 'right' },
+        { key: 'advisor_id', page: 0, x: 300, y: 615, fontSize: 10, align: 'right' },
+      ],
+    },
     acroFormMap: {},
-    notes: 'No AcroForm. 4-page form (כתב הסמכה + כתב הסכמה). Needs calibration.',
+    notes: '4-page form, top table has wider borrower row. Heuristic calibration.',
   },
   {
     bankSlug: 'fibi',
     bankNameHe: 'הבנק הבינלאומי',
     bankNameEn: 'First International Bank',
     pdfPath: 'fibi.pdf',
-    overlay: { placements: [] },
+    overlay: {
+      placements: [
+        // FIBI is an advisor-confirmation form — only advisor data + date.
+        // The customer's POA is attached separately.
+        { key: 'date', page: 0, x: 470, y: 760, fontSize: 10, align: 'left' },
+        { key: 'advisor_name', page: 1, x: 400, y: 100, fontSize: 10, align: 'right' },
+        { key: 'advisor_id', page: 1, x: 250, y: 100, fontSize: 10, align: 'right' },
+      ],
+    },
     acroFormMap: {},
     notes:
-      'No AcroForm. WARNING: this is an advisor-confirmation form, not a customer authorization. Use alongside a separate POA.',
+      'WARNING: advisor-confirmation form (not customer authorization). Use alongside a separate POA. Calibration approximate.',
   },
 ];
 

@@ -2,8 +2,11 @@
 
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { Pencil } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, TempBadge } from '@/components/leads/status-badge';
 import { SignatureRequestsCard } from '@/components/sign/signature-requests-card';
@@ -167,6 +170,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </Card>
       </div>
 
+      <IdentitySection lead={lead} onSaved={load} />
+
       <Card>
         <CardHeader>
           <CardTitle>שיחות אחרונות</CardTitle>
@@ -227,5 +232,118 @@ function Field({ label, value, dir }: { label: string; value: string | null | un
         {value || '—'}
       </p>
     </div>
+  );
+}
+
+/**
+ * "Identity" card — captures the fields needed for contract / bank-auth
+ * generation that aren't part of the normal lead intake. Click "ערוך" to
+ * inline-edit; the values are PATCHed to /leads/:id and persist on the row.
+ */
+function IdentitySection({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    fullName: lead.fullName ?? '',
+    nationalId: lead.nationalId ?? '',
+    phone: lead.phone ?? '',
+    email: lead.email ?? '',
+    streetAddress: lead.streetAddress ?? '',
+    city: lead.city ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      fullName: lead.fullName ?? '',
+      nationalId: lead.nationalId ?? '',
+      phone: lead.phone ?? '',
+      email: lead.email ?? '',
+      streetAddress: lead.streetAddress ?? '',
+      city: lead.city ?? '',
+    });
+  }, [lead]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api(`/leads/${lead.id}`, { method: 'PATCH', body: form });
+      toast.success('פרטי הזדהות נשמרו');
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      toast.error((e as ApiError).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const readyForAuth = lead.fullName && lead.nationalId && lead.phone;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between text-base">
+          <span className="flex items-center gap-2">
+            פרטי הזדהות
+            {readyForAuth ? (
+              <span className="text-xs rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5">מוכן לחתימה</span>
+            ) : (
+              <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">חסרים פרטים</span>
+            )}
+          </span>
+          {!editing && (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5 ml-1.5" />
+              עריכה
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!editing ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <Field label="שם מלא" value={lead.fullName} />
+            <Field label="ת״ז" value={lead.nationalId} dir="ltr" />
+            <Field label="טלפון" value={lead.phone} dir="ltr" />
+            <Field label="אימייל" value={lead.email} dir="ltr" />
+            <Field label="רחוב + מספר בית" value={lead.streetAddress} />
+            <Field label="עיר" value={lead.city} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium block mb-1">שם מלא</label>
+                <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">ת״ז</label>
+                <Input dir="ltr" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">טלפון</label>
+                <Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">אימייל</label>
+                <Input dir="ltr" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">רחוב + מספר בית</label>
+                <Input value={form.streetAddress} onChange={(e) => setForm({ ...form, streetAddress: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1">עיר</label>
+                <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>ביטול</Button>
+              <Button size="sm" onClick={save} disabled={saving}>{saving ? 'שומר…' : 'שמירה'}</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

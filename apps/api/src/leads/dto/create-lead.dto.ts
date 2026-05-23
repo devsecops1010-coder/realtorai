@@ -53,6 +53,18 @@ export class CreateLeadDto {
   @Length(1, 80)
   area?: string;
 
+  // Identity / address — optional, filled lazily when needed for bank
+  // authorization letters or contract generation.
+  @IsOptional()
+  @IsString()
+  @Length(5, 32)
+  nationalId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 160)
+  streetAddress?: string;
+
   @IsOptional()
   @IsInt()
   @Min(0)
