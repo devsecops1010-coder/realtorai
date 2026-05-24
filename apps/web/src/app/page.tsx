@@ -6,6 +6,7 @@ import { HowItWorks } from '@/components/marketing/how-it-works';
 import { Features } from '@/components/marketing/features';
 import { DemoVideo } from '@/components/marketing/demo-video';
 import { Testimonials } from '@/components/marketing/testimonials';
+import { ToolsCallout } from '@/components/marketing/tools-callout';
 import { PricingSection } from '@/components/marketing/pricing-section';
 import { FAQ } from '@/components/marketing/faq';
 import { ContactForm } from '@/components/marketing/contact-form';
@@ -30,6 +31,7 @@ export default function HomePage() {
         <Testimonials />
         <PricingSection />
         <FAQ />
+        <ToolsCallout />
         <CtaBand />
         <ContactForm />
       </main>

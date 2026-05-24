@@ -41,8 +41,8 @@ export function MarketingNav() {
           <NavLink href="/#marketplace">חיפוש נכסים</NavLink>
           <NavLink href="#features">יכולות</NavLink>
           <NavLink href="#how">איך זה עובד</NavLink>
+          <NavLink href="/tools">כלים</NavLink>
           <NavLink href="/pricing">מחירים</NavLink>
-          <NavLink href="#faq">שאלות נפוצות</NavLink>
           <NavLink href="#contact">צור קשר</NavLink>
         </div>
 

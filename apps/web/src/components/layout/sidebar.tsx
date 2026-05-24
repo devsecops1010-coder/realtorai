@@ -12,6 +12,7 @@ import {
   Building2,
   Bell,
   Building,
+  Calculator,
   Shield,
   Banknote,
   Sparkles,
@@ -56,6 +57,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { href: '/dashboard', label: 'המרכז שלי', icon: Home, roles: ALL_ROLES },
       { href: '/notifications', label: 'התראות', icon: Bell, roles: ALL_ROLES, badge: true },
+      { href: '/tools', label: 'מחשבונים', icon: Calculator, roles: ALL_ROLES },
     ],
   },
   {
