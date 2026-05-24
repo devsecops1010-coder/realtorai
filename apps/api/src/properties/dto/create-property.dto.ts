@@ -45,6 +45,7 @@ export class CreatePropertyDto {
   // them set. When `settlementId` is provided the service will
   // backfill `city` + auto-geocode from the settlement centroid.
   @IsOptional() @IsUUID() settlementId?: string;
+  @IsOptional() @IsUUID() neighborhoodId?: string;
   @IsOptional() @IsUUID() streetId?: string;
   @IsOptional() @IsInt() @Min(0) houseNumber?: number;
   @IsOptional() @IsNumber() latitude?: number;

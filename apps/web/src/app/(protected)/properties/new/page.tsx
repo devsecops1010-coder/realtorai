@@ -45,9 +45,14 @@ export default function NewPropertyPage() {
       // truth and backfills city/street from them.
       const body: Record<string, unknown> = { dealType: form.dealType };
       if (address.city) body.city = address.city;
-      if (form.area) body.area = form.area;
+      // `area` (free-text "אזור") falls back to the picked neighborhood
+      // name so the existing area filter on the marketplace still works
+      // even when the operator only picked from the dropdown.
+      const effectiveArea = form.area || address.neighborhood;
+      if (effectiveArea) body.area = effectiveArea;
       if (address.street) body.street = address.street;
       if (address.settlementId) body.settlementId = address.settlementId;
+      if (address.neighborhoodId) body.neighborhoodId = address.neighborhoodId;
       if (address.streetId) body.streetId = address.streetId;
       if (address.houseNumber !== null) body.houseNumber = address.houseNumber;
       if (address.latitude !== null) body.latitude = address.latitude;

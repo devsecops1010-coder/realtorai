@@ -6,6 +6,7 @@ import {
   IL_SETTLEMENTS,
   dedupSettlements,
 } from './il-geo-seed-data';
+import { IL_NEIGHBORHOODS } from './il-neighborhoods-seed-data';
 
 /**
  * Public read-only IL geo lookup. Powers address autocomplete + city/
@@ -89,6 +90,33 @@ export class GeoService {
     });
     if (!row) throw new NotFoundException('Settlement not found');
     return row;
+  }
+
+  /**
+   * Neighborhoods within a settlement (drill-down step between city and
+   * street). Returns empty list for settlements we haven't curated —
+   * the UI gracefully degrades to "skip" and goes straight to streets.
+   */
+  searchNeighborhoods(opts: { settlementId: string; q?: string; take?: number }) {
+    const take = Math.min(opts.take ?? 30, 200);
+    const q = opts.q?.trim() ?? '';
+    return this.prisma.unscoped().ilNeighborhood.findMany({
+      where: {
+        settlementId: opts.settlementId,
+        ...(q.length >= 1 && {
+          OR: [
+            { nameHe: { contains: q, mode: 'insensitive' } },
+            { nameEn: { contains: q, mode: 'insensitive' } },
+          ],
+        }),
+      },
+      orderBy: { nameHe: 'asc' },
+      take,
+      select: {
+        id: true, slug: true, nameHe: true, nameEn: true,
+        latitude: true, longitude: true,
+      },
+    });
   }
 
   /**
@@ -219,6 +247,50 @@ export class GeoService {
       settlements++;
     }
 
-    return { districts, subDistricts, settlements };
+    const neighborhoods = await this.seedNeighborhoods();
+    return { districts, subDistricts, settlements, neighborhoods };
+  }
+
+  /**
+   * Seed the curated neighborhoods. Matches each entry's
+   * `settlementNameHe` against settlements already in the DB (works
+   * with either the curated seed or the full CBS importer output).
+   * Idempotent via the (settlementId, slug) unique index.
+   */
+  async seedNeighborhoods(): Promise<number> {
+    const tx = this.prisma.unscoped();
+    // Build a name→id lookup. The CBS dataset uses "תל אביב - יפו" with
+    // dashes — match on a normalized form so "תל אביב יפו" also works.
+    const norm = (s: string) =>
+      s.replace(/\s+/g, '').replace(/[-–—־'"׳״]/g, '').toLowerCase();
+    const settlements = await tx.ilSettlement.findMany({
+      select: { id: true, nameHe: true },
+    });
+    const idByNorm = new Map(settlements.map((s) => [norm(s.nameHe), s.id]));
+
+    let count = 0;
+    for (const n of IL_NEIGHBORHOODS) {
+      const settlementId = idByNorm.get(norm(n.settlementNameHe));
+      if (!settlementId) continue;
+      await tx.ilNeighborhood.upsert({
+        where: { settlementId_slug: { settlementId, slug: n.slug } },
+        create: {
+          settlementId,
+          slug: n.slug,
+          nameHe: n.nameHe,
+          nameEn: n.nameEn ?? null,
+          latitude: n.latitude ?? null,
+          longitude: n.longitude ?? null,
+        },
+        update: {
+          nameHe: n.nameHe,
+          nameEn: n.nameEn ?? null,
+          latitude: n.latitude ?? null,
+          longitude: n.longitude ?? null,
+        },
+      });
+      count++;
+    }
+    return count;
   }
 }

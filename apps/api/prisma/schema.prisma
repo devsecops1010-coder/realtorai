@@ -769,11 +769,13 @@ model Property {
   // `houseNumber` is a free integer because there's no comprehensive
   // open dataset of street→house numbers in Israel (Israel Post's DB is
   // commercial); a free input + later GovMap integration is the path.
-  settlementId  String?
-  settlement    IlSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
-  streetId      String?
-  street_       IlStreet?     @relation(fields: [streetId], references: [id], onDelete: SetNull, name: "PropertyStreet")
-  houseNumber   Int?
+  settlementId   String?
+  settlement     IlSettlement?   @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  neighborhoodId String?
+  neighborhood   IlNeighborhood? @relation(fields: [neighborhoodId], references: [id], onDelete: SetNull)
+  streetId       String?
+  street_        IlStreet?       @relation(fields: [streetId], references: [id], onDelete: SetNull, name: "PropertyStreet")
+  houseNumber    Int?
   // Geo coordinates — surfaced on the marketplace map. Nullable: when
   // missing we fall back to the city-centroid lookup at render time, so
   // every active property still shows somewhere on the map (in the city
@@ -1202,6 +1204,7 @@ model IlSettlement {
   // autocomplete results so big cities surface first.
   population    Int?
   streets       IlStreet[]
+  neighborhoods IlNeighborhood[]
   properties    Property[]
   @@index([districtId])
   @@index([subDistrictId])
@@ -1225,6 +1228,31 @@ model IlStreet {
   @@index([settlementId, nameHe])
   @@index([nameHe])
   @@map("il_streets")
+}
+
+// Neighborhoods (שכונות) within a settlement. There's no comprehensive
+// CBS dataset for these — Israeli neighborhoods are informally named —
+// so the seed is hand-curated from Wikipedia + OSM tagging for the
+// top ~30 cities. Properties optionally link via Property.neighborhoodId
+// for finer-grained marketplace filtering than the city level allows.
+model IlNeighborhood {
+  id           String       @id @default(uuid())
+  settlementId String
+  settlement   IlSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  // Slug is a Latin/digits identifier used for stable seeding + matching
+  // when re-imports might rename a neighborhood. Unique per settlement.
+  slug         String
+  nameHe       String
+  nameEn       String?
+  // Optional centroid — when present, marketplace markers can group
+  // by neighborhood; when null, falls back to settlement centroid.
+  latitude     Float?
+  longitude    Float?
+  properties   Property[]
+  @@unique([settlementId, slug])
+  @@index([settlementId, nameHe])
+  @@index([nameHe])
+  @@map("il_neighborhoods")
 }
 
 model BankAuthTemplate {

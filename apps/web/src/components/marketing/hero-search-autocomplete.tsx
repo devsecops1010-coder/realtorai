@@ -23,6 +23,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Layers,
   Loader2,
   MapPin,
   Search,
@@ -30,6 +33,11 @@ import {
   Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  HierarchicalSearch,
+  EMPTY_HIERARCHICAL_SEARCH,
+  type HierarchicalSearchValue,
+} from '@/components/geo/hierarchical-search';
 
 const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || '/api';
 
@@ -74,6 +82,11 @@ export function HeroSearchAutocomplete() {
   // A flat list of all items so arrow-keys can navigate across both
   // settlements and streets seamlessly.
   const [activeIdx, setActiveIdx] = useState(-1);
+  // Hierarchical (drill-down) search lives behind a toggle so it
+  // doesn't clutter the main input flow. Off by default; users who
+  // open it usually know they want the cascaded experience.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advanced, setAdvanced] = useState<HierarchicalSearchValue>(EMPTY_HIERARCHICAL_SEARCH);
 
   const flat = [
     ...results.settlements.map((s) => ({ kind: 'settlement' as const, item: s })),
@@ -146,6 +159,33 @@ export function HeroSearchAutocomplete() {
     if (query.trim()) router.push(buildHref({ q: query.trim() }));
     else router.push(buildHref({}));
   }
+
+  /**
+   * Submit the cascaded drill-down. We push the deepest meaningful
+   * level we have:
+   *   - street name → `q` (the marketplace's full-text search hits
+   *     the `street` column among others) + `city`
+   *   - neighborhood name → `q` + `city` (the area filter is a separate
+   *     contains-match, so putting the name in `q` also catches it)
+   *   - city → `city`
+   *   - district only → just nav to the marketplace; the operator
+   *     probably wants to browse the whole district. Without a city
+   *     filter that means "all properties", which is fine.
+   */
+  function applyAdvanced() {
+    const opts: { city?: string; q?: string } = {};
+    if (advanced.settlementName) opts.city = advanced.settlementName;
+    if (advanced.streetName) opts.q = advanced.streetName;
+    else if (advanced.neighborhoodName) opts.q = advanced.neighborhoodName;
+    router.push(buildHref(opts));
+    setAdvancedOpen(false);
+  }
+
+  // Did the user actually start drilling? Enables the apply button so
+  // an empty advanced search can't accidentally clear filters.
+  const advancedHasSelection = Boolean(
+    advanced.districtId || advanced.settlementId || advanced.neighborhoodId || advanced.streetId,
+  );
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open) {
@@ -318,7 +358,7 @@ export function HeroSearchAutocomplete() {
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 text-sm">
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
         {CITY_CHIPS.map((city) => (
           <Link
             key={city}
@@ -328,7 +368,57 @@ export function HeroSearchAutocomplete() {
             {city}
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-primary hover:bg-primary/10"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          חיפוש מתקדם לפי מחוז
+          {advancedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
       </div>
+
+      {/* Cascading drill-down — לוקח את המשתמש מ-"מחוז" עד "רחוב"
+          בלי להקליד אף מילה. נשאר סגור עד לחיצה כי רוב המשתמשים
+          רוצים פשוט להקליד עיר ולהמשיך. */}
+      {advancedOpen && (
+        <div className="mt-3 rounded-lg border bg-background/60 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold">
+              <Layers className="ml-1 inline h-4 w-4 text-primary" />
+              חיפוש מדורג: מחוז ← עיר ← שכונה ← רחוב
+            </p>
+            {advancedHasSelection && (
+              <button
+                type="button"
+                onClick={() => setAdvanced(EMPTY_HIERARCHICAL_SEARCH)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                נקה בחירה
+              </button>
+            )}
+          </div>
+          <HierarchicalSearch value={advanced} onChange={setAdvanced} size="compact" />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              בחר לפחות מחוז ועיר כדי לעבור ל-Marketplace עם פילטר מתאים.
+            </p>
+            <Button
+              type="button"
+              variant="gradient"
+              size="sm"
+              disabled={!advanced.settlementId}
+              onClick={applyAdvanced}
+              className="btn-shine"
+            >
+              עבור לחיפוש
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

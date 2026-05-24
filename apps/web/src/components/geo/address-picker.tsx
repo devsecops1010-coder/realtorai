@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Composite address picker: city + street + house number, hooked up to
- * the IL geo dataset (1,306 cities · 63,563 streets).
+ * Composite address picker: city + neighborhood + street + house number,
+ * hooked up to the IL geo dataset (1,306 cities · 141 curated
+ * neighborhoods · 63,563 streets).
  *
  * State model:
  *   - The parent owns the `value` (a structured address object). The
@@ -12,20 +13,31 @@
  *     picks so a property saved through this control gets both
  *     human-readable + structured data.
  *
- * Picking a new city clears the street selection — the previous
- * streetId is meaningless in a different city.
+ * Cascade rules:
+ *   - Picking a new city clears the street + neighborhood selections —
+ *     the previous IDs are meaningless in a different city.
+ *   - Picking a neighborhood does NOT clear the street (a street can
+ *     legitimately span multiple neighborhoods).
+ *   - Neighborhoods are optional everywhere (we've only curated them
+ *     for ~25 cities); the form must not block the user when there's
+ *     no neighborhood data.
  */
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CityAutocomplete } from './city-autocomplete';
 import { StreetAutocomplete } from './street-autocomplete';
+import { NeighborhoodAutocomplete } from './neighborhood-autocomplete';
 
 export interface AddressValue {
   /** Free-text city — always kept in sync with the picked settlement. */
   city: string;
   /** UUID of `IlSettlement` if picked from the autocomplete; null for free-text. */
   settlementId: string | null;
+  /** Free-text neighborhood — synced with the picked neighborhood. */
+  neighborhood: string;
+  /** UUID of `IlNeighborhood` if picked from the autocomplete; null otherwise. */
+  neighborhoodId: string | null;
   /** Free-text street — synced with the picked street + house number. */
   street: string;
   /** UUID of `IlStreet` if picked from the autocomplete; null otherwise. */
@@ -40,6 +52,8 @@ export interface AddressValue {
 export const EMPTY_ADDRESS: AddressValue = {
   city: '',
   settlementId: null,
+  neighborhood: '',
+  neighborhoodId: null,
   street: '',
   streetId: null,
   houseNumber: null,
@@ -51,6 +65,7 @@ export function AddressPicker({
   value,
   onChange,
   cityLabel = 'עיר',
+  neighborhoodLabel = 'שכונה',
   streetLabel = 'רחוב',
   numberLabel = 'מס׳ בית',
   className,
@@ -58,6 +73,7 @@ export function AddressPicker({
   value: AddressValue;
   onChange: (next: AddressValue) => void;
   cityLabel?: string;
+  neighborhoodLabel?: string;
   streetLabel?: string;
   numberLabel?: string;
   className?: string;
@@ -89,14 +105,47 @@ export function AddressPicker({
                 settlementId: s.id,
                 latitude: s.latitude,
                 longitude: s.longitude,
-                // City change → blow away street selection. The street
-                // text stays so the user sees what they had typed.
+                // City change → blow away neighborhood + street
+                // selections. The text stays so the user sees what
+                // they had typed; the IDs go to avoid stale refs.
+                neighborhood: '',
+                neighborhoodId: null,
                 streetId: null,
               })
             }
           />
         </div>
 
+        <div className="space-y-1.5">
+          <Label>
+            {neighborhoodLabel}
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              (אפשר לדלג)
+            </span>
+          </Label>
+          <NeighborhoodAutocomplete
+            settlementId={value.settlementId}
+            value={value.neighborhood}
+            onChange={(v) =>
+              onChange({
+                ...value,
+                neighborhood: v,
+                // Free-typing → drop the structured ID, same as city.
+                ...(v !== value.neighborhood ? { neighborhoodId: null } : {}),
+              })
+            }
+            onSelectNeighborhood={(n) =>
+              onChange({
+                ...value,
+                neighborhood: n.nameHe,
+                neighborhoodId: n.id,
+              })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[1fr_180px]">
         <div className="space-y-1.5">
           <Label>{streetLabel}</Label>
           <StreetAutocomplete
@@ -114,24 +163,6 @@ export function AddressPicker({
             }
           />
         </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-        <div className="space-y-1.5">
-          <Label>כתובת מלאה (תצוגה)</Label>
-          {/* Read-only preview so the operator sees exactly what gets
-              saved. Mirrors how IL listing sites display addresses. */}
-          <Input
-            value={
-              [value.street, value.houseNumber, value.city]
-                .filter(Boolean)
-                .join(' · ') || '—'
-            }
-            readOnly
-            tabIndex={-1}
-            className="bg-muted/30"
-          />
-        </div>
         <div className="space-y-1.5">
           <Label>{numberLabel}</Label>
           <Input
@@ -146,6 +177,27 @@ export function AddressPicker({
             placeholder="לדוגמה 42"
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>כתובת מלאה (תצוגה)</Label>
+        {/* Read-only preview so the operator sees exactly what gets
+            saved. Order mirrors how IL listing sites display addresses:
+            רחוב + מספר · שכונה · עיר. */}
+        <Input
+          value={
+            [
+              [value.street, value.houseNumber].filter(Boolean).join(' '),
+              value.neighborhood,
+              value.city,
+            ]
+              .filter(Boolean)
+              .join(' · ') || '—'
+          }
+          readOnly
+          tabIndex={-1}
+          className="bg-muted/30"
+        />
       </div>
     </div>
   );

@@ -6,6 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { MapPoint } from './live-map';
 import { CityAutocomplete } from '@/components/geo/city-autocomplete';
+import {
+  HierarchicalSearch,
+  EMPTY_HIERARCHICAL_SEARCH,
+  type HierarchicalSearchValue,
+} from '@/components/geo/hierarchical-search';
 
 // Leaflet touches `window` on import — it must not run on the server.
 // Dynamic-import with ssr:false isolates the map bundle (~40 kB) to the
@@ -25,6 +30,8 @@ import {
   Building2,
   Calculator,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Heart,
   Home,
   Layers,
@@ -129,6 +136,13 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [savedSearches, setSavedSearches] = useState<string[]>([]);
   const [searchSaved, setSearchSaved] = useState(false);
+  // Hierarchical (drill-down) picker is a behind-toggle helper that
+  // streams its picks back into the regular `filters` state. Keeping
+  // it separate means existing filter logic (search, save, share)
+  // continues to work unchanged — the cascading UI is just a different
+  // way to populate the same fields.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advanced, setAdvanced] = useState<HierarchicalSearchValue>(EMPTY_HIERARCHICAL_SEARCH);
 
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
@@ -218,6 +232,31 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
     setCompareIds(next);
     storeList('realtorai_market_compare', next);
   }
+
+  /**
+   * Pulls the deepest meaningful selection from the cascading picker
+   * into the flat `filters` state, then closes the panel. We deliberately
+   * don't auto-submit — the user might still want to add a price / rooms
+   * filter before clicking "סנן נכסים".
+   *
+   * The cascade rule: street wins over neighborhood for the `q` slot
+   * because it's more specific. The neighborhood name also goes into
+   * the area field so the existing area filter (contains-match against
+   * the `area` column) matches old free-text listings too.
+   */
+  function applyAdvanced() {
+    if (!advanced.settlementId) return;
+    setFilters((prev) => ({
+      ...prev,
+      city: advanced.settlementName ?? prev.city,
+      q: advanced.streetName ?? advanced.neighborhoodName ?? prev.q,
+    }));
+    setAdvancedOpen(false);
+  }
+
+  const advancedHasSelection = Boolean(
+    advanced.districtId || advanced.settlementId || advanced.neighborhoodId || advanced.streetId,
+  );
 
   const content = (
     <section
@@ -339,13 +378,61 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
           </div>
         </form>
 
-        {savedSearches.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted-foreground">
-            {savedSearches.map((search) => (
-              <span key={search} className="rounded-full border bg-background px-3 py-1">
-                {search}
-              </span>
-            ))}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            חיפוש מדורג לפי מחוז / עיר / שכונה
+            {advancedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+          {savedSearches.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {savedSearches.map((search) => (
+                <span key={search} className="rounded-full border bg-background px-3 py-1">
+                  {search}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {advancedOpen && (
+          <div className="mt-3 rounded-lg border bg-card p-4 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold">
+                <Layers className="ml-1 inline h-4 w-4 text-primary" />
+                בחר מחוז ואז התקדם עד הרחוב
+              </p>
+              {advancedHasSelection && (
+                <button
+                  type="button"
+                  onClick={() => setAdvanced(EMPTY_HIERARCHICAL_SEARCH)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  נקה
+                </button>
+              )}
+            </div>
+            <HierarchicalSearch value={advanced} onChange={setAdvanced} size="compact" />
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                הבחירה תיכנס לתוך פילטרי החיפוש למעלה — לחץ "סנן נכסים" כדי להריץ.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="gradient"
+                disabled={!advanced.settlementId}
+                onClick={applyAdvanced}
+              >
+                החל בחירה
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
 

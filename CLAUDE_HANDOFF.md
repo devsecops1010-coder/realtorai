@@ -251,6 +251,50 @@ infra/docker-compose.dev.yml
   - Run from repo root after Prisma migration/generate:
     `cd apps/api && node scripts/seed-demo-properties.js`
 
+## Latest Mortgage Calculator Rebuild
+
+- Reworked the public mortgage calculator toward feature parity with advanced Israeli mortgage calculators.
+- Main files:
+  - `apps/web/src/lib/mortgage.ts`
+  - `apps/web/src/components/tools/mortgage-calculator.tsx`
+  - `apps/web/src/app/tools/mortgage-calculator/page.tsx`
+- Features now include:
+  - up to 4 parallel mortgage mixes
+  - always-visible tabs for `תמהיל 1` through `תמהיל 4`
+  - a dedicated `השוואת תמהילים` tab matching the requested calculator workflow
+  - clone active mix into the next tab
+  - multiple tracks per mix
+  - horizontal blue track grid with columns for amount, track, repayment method, months, rate, CPI, advanced options, monthly payment and total repayment
+  - tabs are attached directly to a blue calculator workbench; transaction controls and result totals live inside the workbench instead of a separate dashboard card
+  - track term is now a select list in 12-month steps, displayed like `360 (30 שנים)` to match the requested calculator UI
+  - default track term is 360 months / 30 years
+  - transaction controls are bidirectional:
+    - editing property price clamps equity and recalculates loan/LTV
+    - editing equity recalculates loan/LTV
+    - editing loan amount recalculates equity/LTV
+    - editing LTV recalculates loan/equity
+    - all mix track tables now rescale principal amounts immediately when the top loan/equity/LTV/price controls change, preserving each mix's current track ratios and keeping track totals aligned with the loan amount
+  - expanded track catalog: prime, fixed linked/unlinked, variable linked/unlinked, eligibility, dollar/euro, makam
+  - repayment methods: Shpitzer, equal principal, bullet/balloon
+  - advanced per-track inputs: grace, future rate change, partial/full prepayment, reduce-payment/shorten-term mode
+  - aggregate summary, per-track summary, comparison summary, annual comparison, monthly comparison
+  - full monthly amortization table for the active mix
+  - browser save/load, print, CSV export
+- The full calculator can now be prefilled from URL query params:
+  - `/tools/mortgage-calculator?price=2500000&down=625000`
+  - supported params: `price`, `down`, `downPayment`, `equity`, `scenario`
+- Sale property detail pages now render the full mortgage calculator below the property detail grid, prefilled with the property's price and 25% down payment. It is not the compact preview.
+- Do not copy external calculator branding or text. Keep the implementation as RealtorAI-owned UI with similar functionality.
+
+## Latest Product Polish Pass
+
+- Public marketing navigation and footer anchor links now use root-relative anchors (`/#features`, `/#how`, `/#contact`, `/#faq`) so they work from marketplace/property detail pages.
+- Cookie notice was reduced to a compact bottom-left card so it does not cover forms, calculators, or primary CTA areas as aggressively.
+- `/marketplace` now has dedicated metadata and a real page-level `h1`.
+- Marketplace demo rows hide city-specific office mismatch for `DEMO_SEED_50` listings by showing `משרד תיווך מאומת` in cards.
+- Onboarding sample properties now include cover/gallery images, and the repeatable 50-property seed now includes amenity booleans.
+- Homepage hero smart map now uses live public property data through `HeroLivePropertyMap` + `LiveMap` instead of fake hardcoded price dots.
+
 ## Production Risks To Fix Next
 
 High priority:

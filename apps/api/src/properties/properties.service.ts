@@ -313,6 +313,7 @@ export class PropertiesService {
       area: dto.area ?? null,
       street: resolvedGeo.street ?? dto.street ?? null,
       settlementId: dto.settlementId ?? null,
+      neighborhoodId: dto.neighborhoodId ?? null,
       streetId: dto.streetId ?? null,
       houseNumber: dto.houseNumber ?? null,
       latitude: dto.latitude ?? resolvedGeo.latitude ?? null,
@@ -365,11 +366,13 @@ export class PropertiesService {
     // lat/lng automatically.
     if (
       dto.settlementId !== undefined ||
+      dto.neighborhoodId !== undefined ||
       dto.streetId !== undefined ||
       dto.houseNumber !== undefined
     ) {
       const resolved = await this.resolveStructuredAddress(dto);
       if (dto.settlementId !== undefined) data.settlementId = dto.settlementId;
+      if (dto.neighborhoodId !== undefined) data.neighborhoodId = dto.neighborhoodId;
       if (dto.streetId !== undefined) data.streetId = dto.streetId;
       if (dto.houseNumber !== undefined) data.houseNumber = dto.houseNumber;
       if (resolved.city !== null) data.city = resolved.city;

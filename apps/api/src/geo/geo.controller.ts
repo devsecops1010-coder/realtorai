@@ -62,6 +62,25 @@ export class GeoController {
   }
 
   /**
+   * Neighborhoods (שכונות) within a settlement. `?settlementId=` required.
+   * Returns empty list for cities we haven't curated — UI should let
+   * the user skip neighborhood and go straight to street.
+   */
+  @Public()
+  @Get('neighborhoods')
+  neighborhoods(
+    @Query('settlementId') settlementId: string,
+    @Query('q') q?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.geo.searchNeighborhoods({
+      settlementId,
+      q,
+      take: take ? Number(take) : undefined,
+    });
+  }
+
+  /**
    * Streets within a settlement. `?settlementId=...` required.
    * `?q=...` substring filter. Returns empty list if the settlement
    * hasn't had its streets imported yet — the UI should fall back to
