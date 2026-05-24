@@ -591,14 +591,21 @@ function PropertyRow({
   const address = [property.city, property.area, property.street].filter(Boolean).join(', ') || 'כתובת תעודכן בהמשך';
   const image = getCoverImage(property);
 
+  // We want the whole content area (image + title + features + price) to
+  // navigate to the detail page, but the small action icons (favorite,
+  // compare, "select-into-panel") must remain in-place clicks. The simplest
+  // pattern that works inside accessibility constraints: wrap each
+  // navigable chunk in a `Link`, and let the actions sit outside as
+  // siblings with `e.stopPropagation()` not needed because they're not
+  // descendants of the Link.
+  const href = `/marketplace/${property.id}`;
   return (
-    <Card className={selected ? 'overflow-hidden border-primary shadow-soft' : 'overflow-hidden'}>
+    <Card className={selected ? 'overflow-hidden border-primary shadow-soft' : 'overflow-hidden hover:shadow-lift hover:border-primary/30 transition'}>
       <CardContent className="grid gap-4 p-4 md:grid-cols-[210px_1fr_auto] md:items-center">
-        <button
-          type="button"
-          onClick={onSelect}
+        <Link
+          href={href}
           className="group relative aspect-[4/3] overflow-hidden rounded-md bg-muted text-right"
-          aria-label={`פתח נכס ${address}`}
+          aria-label={`פתח דף נכס: ${address}`}
         >
           {image ? (
             <img
@@ -615,8 +622,9 @@ function PropertyRow({
           <span className="absolute right-3 top-3 rounded-full bg-background/90 px-2 py-1 text-xs font-medium shadow-soft">
             {dealLabels[property.dealType]}
           </span>
-        </button>
-        <div className="space-y-3">
+        </Link>
+
+        <Link href={href} className="block space-y-3 group">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={property.dealType === 'sale' ? 'default' : 'secondary'}>
               {dealLabels[property.dealType]}
@@ -625,7 +633,7 @@ function PropertyRow({
             {isFresh(property.updatedAt) && <Badge variant="success">חדש</Badge>}
           </div>
           <div>
-            <h3 className="text-xl font-semibold">{address}</h3>
+            <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{address}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               משרד: {property.office.name}
             </p>
@@ -644,11 +652,12 @@ function PropertyRow({
               {property.price && property.rooms ? `${formatPrice(Math.round(property.price / property.rooms))} לחדר` : 'מדד מחיר יעודכן'}
             </span>
           </div>
-        </div>
+        </Link>
+
         <div className="space-y-3 md:min-w-48 md:text-left">
-          <div className="text-2xl font-bold">
+          <Link href={href} className="block text-2xl font-bold hover:text-primary transition-colors">
             {property.price ? formatPrice(property.price) : 'מחיר יעודכן'}
-          </div>
+          </Link>
           <div className="grid grid-cols-3 gap-2">
             <Button type="button" variant={favorite ? 'default' : 'outline'} size="icon" onClick={onFavorite} aria-label="שמור נכס">
               <Heart className="h-4 w-4" />
@@ -656,10 +665,15 @@ function PropertyRow({
             <Button type="button" variant={compared ? 'default' : 'outline'} size="icon" onClick={onCompare} aria-label="השווה נכס">
               <Scale className="h-4 w-4" />
             </Button>
-            <Button type="button" onClick={onSelect} variant={selected ? 'default' : 'outline'} size="icon" aria-label="בחר נכס">
+            <Button type="button" onClick={onSelect} variant={selected ? 'default' : 'outline'} size="icon" aria-label="בחר נכס לתצוגה מקדימה">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </div>
+          <Button asChild variant="gradient" size="sm" className="w-full gap-1.5">
+            <Link href={href}>
+              כל הפרטים
+            </Link>
+          </Button>
         </div>
       </CardContent>
     </Card>

@@ -8,19 +8,18 @@ import { MortgageCalculator } from '@/components/tools/mortgage-calculator';
 export const metadata: Metadata = {
   title: 'מחשבון משכנתא | Realtorai',
   description:
-    'מחשבון משכנתא ישראלי — תשלום חודשי, יחס LTV, הכנסה נדרשת. תומך בדירה יחידה, חלופית ומשקיע.',
+    'מחשבון משכנתא ישראלי מתקדם עם תמהילים, מסלולים, גרייס, סילוק עתידי, לוחות סילוקין והשוואה.',
 };
 
 export default function MortgageCalculatorPage() {
   return (
     <>
       <MarketingNav />
-      <main className="container mx-auto px-4 py-12 max-w-3xl">
+      <main className="container mx-auto max-w-7xl px-4 py-12">
         <header className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">מחשבון משכנתא</h1>
-          <p className="text-muted-foreground">
-            חישוב מהיר של תשלום חודשי, יחס LTV וההכנסה הנדרשת. מבוסס על הנחיות בנק
-            ישראל (דירה יחידה / חלופית / משקיע).
+          <p className="mx-auto max-w-3xl text-muted-foreground">
+            תמהילים, מסלולים, מדד, גרייס, שינוי ריבית, סילוק עתידי, לוח סילוקין מלא והשוואה בין הצעות.
           </p>
         </header>
 

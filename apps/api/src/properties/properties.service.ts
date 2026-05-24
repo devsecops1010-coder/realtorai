@@ -46,6 +46,47 @@ export class PropertiesService {
     return property;
   }
 
+  /**
+   * Public detail view for a single property. Mirrors the column selection
+   * of `publicSearch()` plus the related office contact info so the
+   * /marketplace/[id] page has everything it needs in one round-trip.
+   * Returns 404 if the property doesn't exist or isn't `active` — drafts,
+   * pending and sold properties stay invisible to the public.
+   */
+  async publicGetById(id: string) {
+    const property = await this.prisma.unscoped().property.findFirst({
+      where: { id, status: PropertyStatus.active },
+      select: {
+        id: true,
+        dealType: true,
+        city: true,
+        area: true,
+        street: true,
+        rooms: true,
+        floor: true,
+        price: true,
+        condition: true,
+        coverImageUrl: true,
+        galleryUrls: true,
+        status: true,
+        notes: true,
+        createdAt: true,
+        updatedAt: true,
+        office: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            phone: true,
+            whatsappNumber: true,
+          },
+        },
+      },
+    });
+    if (!property) throw new NotFoundException('Property not found');
+    return property;
+  }
+
   async publicSearch(query: PublicPropertySearchQuery) {
     const take = query.take ?? 24;
     const skip = query.skip ?? 0;

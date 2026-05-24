@@ -37,6 +37,16 @@ export class PropertiesController {
     return this.properties.publicSearch(query);
   }
 
+  /**
+   * Single-property public detail. Returns only properties with
+   * status='active' — no auth required. Used by /marketplace/[id].
+   */
+  @Public()
+  @Get('public/:id')
+  publicGet(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.properties.publicGetById(id);
+  }
+
   @Public()
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @Post('public/:id/leads')

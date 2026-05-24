@@ -1,39 +1,9 @@
 /**
  * Israeli mortgage calculation engine.
  *
- * Supports the multi-track ("תמהיל") model real Israeli mortgages use:
- * a single loan is split into 2-6 sub-loans ("מסלולים"), each with its
- * own interest type, indexation, repayment method, term and rate. The
- * borrower's monthly payment is the sum of all tracks.
- *
- * Track types (`TrackKind`):
- *   - prime          — variable rate tied to the Bank of Israel prime; unindexed
- *   - fixed_unlinked — "קל\"צ" — fixed rate, no CPI indexation
- *   - fixed_linked   — "ק\"צ" — fixed rate, principal grows with CPI
- *   - var5_unlinked  — "מל\"צ" — rate resets every 5 years; unindexed
- *   - var5_linked    — "מ\"צ" — rate resets every 5 years; indexed
- *
- * Repayment methods (`RepayMethod`):
- *   - shpitzer        — constant monthly payment (annuity), interest-heavy at start
- *   - equal_principal — principal portion is constant; total payment falls over time
- *
- * Indexation handling: indexed tracks (fixed_linked, var5_linked) inflate
- * the outstanding balance monthly by `(1+cpi)^(1/12)−1`. The payment is
- * recomputed against the inflated balance + remaining months, so users see
- * a growing payment over the life of the loan.
- *
- * The engine outputs (per track):
- *   - a month-by-month schedule (principal/interest/index/payment/balance)
- *   - track-level totals: total repayment, total interest, total index cost,
- *     first-month payment, peak monthly payment
- *
- * Aggregation across tracks gives the borrower's total monthly cash-out per
- * month and the mix's overall cost.
- *
- * NOTE: variable tracks are modelled as flat-rate for the entire life. A
- * real-world variable mortgage would step the rate up/down at the reset
- * boundaries, but the borrower can't know those rates in advance. Showing
- * the current rate as a constant gives the most honest projection.
+ * The public calculator is built around the Israeli "תמהיל" workflow:
+ * several tracks, each with its own rate, term, indexation, repayment method
+ * and optional advanced events such as grace, future rate change and prepayment.
  */
 
 export type TrackKind =
@@ -41,36 +11,48 @@ export type TrackKind =
   | 'fixed_unlinked'
   | 'fixed_linked'
   | 'var5_unlinked'
-  | 'var5_linked';
+  | 'var5_linked'
+  | 'eligibility'
+  | 'euro'
+  | 'dollar'
+  | 'makam'
+  | 'var1_linked'
+  | 'var2_linked'
+  | 'var10_linked'
+  | 'var2_unlinked'
+  | 'var3_unlinked';
 
-export type RepayMethod = 'shpitzer' | 'equal_principal';
+export type RepayMethod = 'shpitzer' | 'equal_principal' | 'bullet';
+export type PrepaymentType = 'none' | 'partial' | 'full';
+export type PrepaymentMode = 'reduce_payment' | 'shorten_term';
 
 export interface TrackInput {
   id: string;
   kind: TrackKind;
   method: RepayMethod;
-  principal: number;          // ₪
-  annualRatePct: number;      // e.g. 5.5 for 5.5%
-  months: number;             // total term, max 360
-  /**
-   * Annual CPI assumption (%). Ignored for unlinked tracks. Defaults to ~2.5%
-   * — the long-run Israeli inflation target.
-   */
+  principal: number;
+  annualRatePct: number;
+  months: number;
   annualCpiPct?: number;
+  graceMonths?: number;
+  futureRateMonth?: number;
+  futureRateDeltaPct?: number;
+  prepaymentType?: PrepaymentType;
+  prepaymentMonth?: number;
+  prepaymentAmount?: number;
+  prepaymentMode?: PrepaymentMode;
 }
 
 export interface ScheduleRow {
-  month: number;          // 1-based
+  month: number;
   payment: number;
-  principal: number;      // principal portion of `payment`
-  interest: number;       // interest portion of `payment`
-  /**
-   * Indexation added to the outstanding balance THIS month (₪). The user
-   * doesn't pay this directly — it grows the balance — but accumulating it
-   * gives the "total index cost" headline.
-   */
+  regularPayment: number;
+  principal: number;
+  interest: number;
   indexAdjustment: number;
-  balance: number;        // outstanding principal AFTER this month's payment
+  extraPayment: number;
+  annualRatePct: number;
+  balance: number;
 }
 
 export interface TrackSummary {
@@ -80,257 +62,47 @@ export interface TrackSummary {
   schedule: ScheduleRow[];
   firstPayment: number;
   peakPayment: number;
-  totalPayments: number;  // sum of all payments — what the borrower actually pays
-  totalInterest: number;  // sum of interest portions
-  totalIndex: number;     // sum of indexAdjustment over life
-  costPerShekel: number;  // totalPayments / principal
+  totalPayments: number;
+  totalInterest: number;
+  totalIndex: number;
+  totalPrepayments: number;
+  costPerShekel: number;
+  effectiveAnnualRatePct: number;
 }
 
 export interface MixValidation {
   ok: boolean;
-  /** Friendly Hebrew messages — one per violation. */
   messages: string[];
-  /** Quick numerics for the UI. */
   totals: {
     sumOfPrincipals: number;
-    fixedShare: number;   // 0..1 — share of loan in any fixed-rate track
-    primeShare: number;   // 0..1 — share of loan in Prime
+    fixedShare: number;
+    shortVariableShare: number;
   };
 }
 
 export interface MixAggregate {
   tracks: TrackSummary[];
-  /** Total principal across all tracks. */
   totalPrincipal: number;
-  /** Sum of all first-month payments. */
   firstMonthlyPayment: number;
-  /** Highest combined monthly payment across the life of the loan. */
   peakMonthlyPayment: number;
-  totalRepayment: number;   // sum across tracks
+  totalRepayment: number;
   totalInterest: number;
   totalIndex: number;
-  /** Monthly combined payment over time, used by the chart. */
-  combinedMonthly: { month: number; payment: number }[];
+  totalPrepayments: number;
+  costPerShekel: number;
+  weightedRatePct: number;
+  combinedMonthly: { month: number; payment: number; balance: number }[];
 }
-
-// ---------------------------------------------------------------------------
-// Track-level math
-// ---------------------------------------------------------------------------
-
-/**
- * Compute the Shpitzer monthly payment for a balance at this point in time.
- * Used both initially and after balance-changing events (e.g. monthly
- * indexation). Handles the zero-rate degenerate case explicitly to avoid
- * NaN.
- */
-function shpitzerPayment(balance: number, monthlyRate: number, remainingMonths: number): number {
-  if (remainingMonths <= 0 || balance <= 0) return 0;
-  if (monthlyRate === 0) return balance / remainingMonths;
-  const f = Math.pow(1 + monthlyRate, remainingMonths);
-  return (balance * monthlyRate * f) / (f - 1);
-}
-
-function isLinked(kind: TrackKind): boolean {
-  return kind === 'fixed_linked' || kind === 'var5_linked';
-}
-
-/** Convert annual nominal rate (%) to per-month decimal (e.g. 6%→0.005). */
-function monthlyRate(annualPct: number): number {
-  return annualPct / 100 / 12;
-}
-
-/** Convert annual CPI (%) to per-month inflation factor (e.g. 2.5%→0.002058). */
-function monthlyCpi(annualCpiPct: number): number {
-  if (annualCpiPct <= 0) return 0;
-  return Math.pow(1 + annualCpiPct / 100, 1 / 12) - 1;
-}
-
-/**
- * Build a full month-by-month schedule for a single track. The returned
- * array has exactly `months` rows (or fewer if the balance reaches zero
- * early, which only happens with rounding artefacts).
- *
- * Both repayment methods share the same shape:
- *   1. Optionally inflate balance for the month (linked tracks only).
- *   2. Compute interest on the (post-inflation) balance.
- *   3. Compute principal portion per the method.
- *   4. Reduce balance, record the row.
- *
- * Equal-principal divides the *current* outstanding principal by remaining
- * months, which gives a slightly decreasing-payment profile even on linked
- * tracks (the rising balance is offset by the shorter remaining term).
- */
-export function amortize(track: TrackInput): ScheduleRow[] {
-  const r = monthlyRate(track.annualRatePct);
-  const cpi = isLinked(track.kind) ? monthlyCpi(track.annualCpiPct ?? 0) : 0;
-  const schedule: ScheduleRow[] = [];
-
-  let balance = track.principal;
-  for (let m = 1; m <= track.months; m++) {
-    const remaining = track.months - m + 1;
-
-    // 1. Inflate balance (linked tracks only).
-    const indexAdjustment = balance * cpi;
-    balance += indexAdjustment;
-
-    // 2. Interest accrues on the inflated balance.
-    const interest = balance * r;
-
-    // 3. Principal portion depends on method.
-    let payment: number;
-    let principalPaid: number;
-    if (track.method === 'shpitzer') {
-      payment = shpitzerPayment(balance, r, remaining);
-      principalPaid = payment - interest;
-    } else {
-      // Equal-principal: keep the principal portion constant relative to the
-      // current balance + remaining term. On linked tracks this means the
-      // principal portion creeps up slightly each month as the balance
-      // inflates, but the payment still trends downward because the interest
-      // drop dominates.
-      principalPaid = balance / remaining;
-      payment = principalPaid + interest;
-    }
-
-    // 4. Apply principal payment.
-    balance = Math.max(0, balance - principalPaid);
-
-    schedule.push({
-      month: m,
-      payment,
-      principal: principalPaid,
-      interest,
-      indexAdjustment,
-      balance,
-    });
-  }
-  return schedule;
-}
-
-export function summarizeTrack(track: TrackInput): TrackSummary {
-  const schedule = amortize(track);
-  let totalPayments = 0;
-  let totalInterest = 0;
-  let totalIndex = 0;
-  let peak = 0;
-  for (const r of schedule) {
-    totalPayments += r.payment;
-    totalInterest += r.interest;
-    totalIndex += r.indexAdjustment;
-    if (r.payment > peak) peak = r.payment;
-  }
-  return {
-    id: track.id,
-    kind: track.kind,
-    method: track.method,
-    schedule,
-    firstPayment: schedule[0]?.payment ?? 0,
-    peakPayment: peak,
-    totalPayments,
-    totalInterest,
-    totalIndex,
-    costPerShekel: track.principal > 0 ? totalPayments / track.principal : 0,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Mix-level math
-// ---------------------------------------------------------------------------
-
-/**
- * Bank-of-Israel composition guard-rails. Current rules (2020 update,
- * still active 2026):
- *
- *   - At least ⅓ of the loan must be in fixed-rate tracks
- *     (either קל\"צ or ק\"צ). This is the floor for "predictable" share.
- *   - At most ⅔ of the loan may be in Prime (the most volatile track).
- *
- * The previous 2013 rule that required ⅓ specifically in fixed-unlinked
- * was relaxed in 2020 to "any fixed", which is what we enforce.
- *
- * Banks will refuse to approve a mix outside these bounds, so we surface
- * a clear validation error rather than letting the user finalize a
- * non-bankable mix.
- */
-export function validateMix(tracks: TrackInput[], targetTotal: number): MixValidation {
-  const messages: string[] = [];
-  const sumOfPrincipals = tracks.reduce((s, t) => s + (t.principal || 0), 0);
-  const fixedSum = tracks
-    .filter((t) => t.kind === 'fixed_unlinked' || t.kind === 'fixed_linked')
-    .reduce((s, t) => s + (t.principal || 0), 0);
-  const primeSum = tracks
-    .filter((t) => t.kind === 'prime')
-    .reduce((s, t) => s + (t.principal || 0), 0);
-
-  const fixedShare = sumOfPrincipals > 0 ? fixedSum / sumOfPrincipals : 0;
-  const primeShare = sumOfPrincipals > 0 ? primeSum / sumOfPrincipals : 0;
-
-  // Allow ±1% wiggle on the total so users can type round numbers.
-  const totalDelta = Math.abs(sumOfPrincipals - targetTotal);
-  if (targetTotal > 0 && totalDelta > targetTotal * 0.01 + 100) {
-    messages.push(
-      `סך המסלולים (${Math.round(sumOfPrincipals).toLocaleString('he-IL')}) לא תואם לסכום ההלוואה (${Math.round(targetTotal).toLocaleString('he-IL')}). הפרש: ${Math.round(sumOfPrincipals - targetTotal).toLocaleString('he-IL')} ₪.`,
-    );
-  }
-  if (fixedShare < 1 / 3 - 0.001 && sumOfPrincipals > 0) {
-    messages.push(
-      `לפחות שליש מההלוואה חייב להיות במסלול קבוע (קל\"צ או ק\"צ). כרגע: ${(fixedShare * 100).toFixed(0)}%.`,
-    );
-  }
-  if (primeShare > 2 / 3 + 0.001) {
-    messages.push(
-      `מקסימום שני שלישים מההלוואה במסלול פריים. כרגע: ${(primeShare * 100).toFixed(0)}%.`,
-    );
-  }
-
-  return {
-    ok: messages.length === 0,
-    messages,
-    totals: { sumOfPrincipals, fixedShare, primeShare },
-  };
-}
-
-export function aggregateMix(tracks: TrackInput[]): MixAggregate {
-  const summaries = tracks.map(summarizeTrack);
-  // Length of the longest track — combined chart needs to span everything.
-  const longestMonths = summaries.reduce((m, s) => Math.max(m, s.schedule.length), 0);
-
-  const combinedMonthly: { month: number; payment: number }[] = [];
-  for (let m = 1; m <= longestMonths; m++) {
-    let sum = 0;
-    for (const s of summaries) {
-      const row = s.schedule[m - 1];
-      if (row) sum += row.payment;
-    }
-    combinedMonthly.push({ month: m, payment: sum });
-  }
-
-  return {
-    tracks: summaries,
-    totalPrincipal: tracks.reduce((s, t) => s + t.principal, 0),
-    firstMonthlyPayment: combinedMonthly[0]?.payment ?? 0,
-    peakMonthlyPayment: combinedMonthly.reduce((m, r) => Math.max(m, r.payment), 0),
-    totalRepayment: summaries.reduce((s, t) => s + t.totalPayments, 0),
-    totalInterest: summaries.reduce((s, t) => s + t.totalInterest, 0),
-    totalIndex: summaries.reduce((s, t) => s + t.totalIndex, 0),
-    combinedMonthly,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Track metadata (labels, recommended rates, indexation flag).
-// Recommended rates are typical April 2026 market quotes, intended as
-// sensible defaults — not promises. Banks quote their own.
-// ---------------------------------------------------------------------------
 
 export interface TrackMeta {
   kind: TrackKind;
   labelHe: string;
-  short: string;          // e.g. "קל\"צ"
+  short: string;
   description: string;
   indexed: boolean;
   defaultRatePct: number;
   recommendedRange: [number, number];
+  shortVariable: boolean;
 }
 
 export const TRACKS: Record<TrackKind, TrackMeta> = {
@@ -338,56 +110,364 @@ export const TRACKS: Record<TrackKind, TrackMeta> = {
     kind: 'prime',
     labelHe: 'פריים',
     short: 'פריים',
-    description: 'משתנה, נצמדת לריבית הפריים של בנק ישראל. ללא הצמדה למדד.',
+    description: 'ריבית משתנה הצמודה לפריים, ללא מדד.',
     indexed: false,
     defaultRatePct: 5.5,
     recommendedRange: [5.0, 6.25],
+    shortVariable: true,
   },
   fixed_unlinked: {
     kind: 'fixed_unlinked',
-    labelHe: 'קבועה לא צמודה (קל"צ)',
+    labelHe: 'קבועה לא צמודה',
     short: 'קל"צ',
-    description: 'ריבית קבועה לכל אורך התקופה. ללא הצמדה — הכי יציב, יקר יחסית.',
+    description: 'ריבית קבועה ללא הצמדה למדד.',
     indexed: false,
     defaultRatePct: 5.2,
     recommendedRange: [4.6, 5.8],
+    shortVariable: false,
   },
   fixed_linked: {
     kind: 'fixed_linked',
-    labelHe: 'קבועה צמודה (ק"צ)',
+    labelHe: 'קבועה צמודה',
     short: 'ק"צ',
-    description: 'ריבית קבועה, אך הקרן מוצמדת למדד המחירים לצרכן.',
+    description: 'ריבית קבועה, הקרן מוצמדת למדד.',
     indexed: true,
     defaultRatePct: 3.4,
     recommendedRange: [2.9, 3.8],
+    shortVariable: false,
   },
   var5_unlinked: {
     kind: 'var5_unlinked',
-    labelHe: 'משתנה 5 שנים לא צמודה (מל"צ)',
+    labelHe: 'משתנה כל 5 לא צמודה',
     short: 'מל"צ',
-    description: 'הריבית משתנה כל 5 שנים לפי עוגן. ללא הצמדה.',
+    description: 'ריבית משתנה כל 5 שנים, ללא מדד.',
     indexed: false,
     defaultRatePct: 4.5,
     recommendedRange: [4.0, 5.0],
+    shortVariable: false,
   },
   var5_linked: {
     kind: 'var5_linked',
-    labelHe: 'משתנה 5 שנים צמודה (מ"צ)',
+    labelHe: 'משתנה כל 5 צמודה',
     short: 'מ"צ',
-    description: 'הריבית משתנה כל 5 שנים, צמודה למדד. הזולה ביותר היום, חשופה לעליות.',
+    description: 'ריבית משתנה כל 5 שנים, הקרן מוצמדת למדד.',
     indexed: true,
     defaultRatePct: 3.0,
     recommendedRange: [2.5, 3.5],
+    shortVariable: false,
+  },
+  eligibility: {
+    kind: 'eligibility',
+    labelHe: 'זכאות מדינה',
+    short: 'זכאות',
+    description: 'מסלול זכאות מדינה, בדרך כלל צמוד מדד.',
+    indexed: true,
+    defaultRatePct: 3.0,
+    recommendedRange: [2.3, 3.5],
+    shortVariable: false,
+  },
+  euro: {
+    kind: 'euro',
+    labelHe: 'יורו',
+    short: 'יורו',
+    description: 'מסלול מט"ח משתנה, חשוף למטבע ולריבית.',
+    indexed: false,
+    defaultRatePct: 5.1,
+    recommendedRange: [4.6, 5.8],
+    shortVariable: true,
+  },
+  dollar: {
+    kind: 'dollar',
+    labelHe: 'דולר',
+    short: 'דולר',
+    description: 'מסלול מט"ח משתנה, חשוף למטבע ולריבית.',
+    indexed: false,
+    defaultRatePct: 5.4,
+    recommendedRange: [4.9, 6.2],
+    shortVariable: true,
+  },
+  makam: {
+    kind: 'makam',
+    labelHe: 'עוגן מק"מ',
+    short: 'מק"מ',
+    description: 'ריבית משתנה בתדירות קצרה לפי עוגן מק"מ.',
+    indexed: false,
+    defaultRatePct: 5.3,
+    recommendedRange: [4.8, 6.0],
+    shortVariable: true,
+  },
+  var1_linked: {
+    kind: 'var1_linked',
+    labelHe: 'משתנה כל שנה צמודה',
+    short: 'מ"צ 1',
+    description: 'ריבית משתנה כל שנה, צמודה למדד.',
+    indexed: true,
+    defaultRatePct: 3.1,
+    recommendedRange: [2.6, 3.8],
+    shortVariable: true,
+  },
+  var2_linked: {
+    kind: 'var2_linked',
+    labelHe: 'משתנה כל שנתיים צמודה',
+    short: 'מ"צ 2',
+    description: 'ריבית משתנה כל שנתיים, צמודה למדד.',
+    indexed: true,
+    defaultRatePct: 3.2,
+    recommendedRange: [2.7, 3.9],
+    shortVariable: true,
+  },
+  var10_linked: {
+    kind: 'var10_linked',
+    labelHe: 'משתנה כל 10 צמודה',
+    short: 'מ"צ 10',
+    description: 'ריבית משתנה כל 10 שנים, צמודה למדד.',
+    indexed: true,
+    defaultRatePct: 3.6,
+    recommendedRange: [3.0, 4.2],
+    shortVariable: false,
+  },
+  var2_unlinked: {
+    kind: 'var2_unlinked',
+    labelHe: 'משתנה כל שנתיים לא צמודה',
+    short: 'מל"צ 2',
+    description: 'ריבית משתנה כל שנתיים, ללא מדד.',
+    indexed: false,
+    defaultRatePct: 4.8,
+    recommendedRange: [4.2, 5.5],
+    shortVariable: true,
+  },
+  var3_unlinked: {
+    kind: 'var3_unlinked',
+    labelHe: 'משתנה כל 3 לא צמודה',
+    short: 'מל"צ 3',
+    description: 'ריבית משתנה כל 3 שנים, ללא מדד.',
+    indexed: false,
+    defaultRatePct: 4.7,
+    recommendedRange: [4.1, 5.4],
+    shortVariable: true,
   },
 };
 
-/**
- * Sensible starter mix matching the "Stockton ⅓-⅓-⅓" Israeli convention.
- * Caller passes the total loan; we split into three tracks.
- */
-export function defaultMix(totalPrincipal: number, totalMonths = 25 * 12): TrackInput[] {
+export const TRACK_OPTIONS = Object.values(TRACKS);
+
+function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function monthlyRate(annualPct: number): number {
+  return annualPct / 100 / 12;
+}
+
+function monthlyCpi(annualCpiPct: number): number {
+  if (annualCpiPct <= 0) return 0;
+  return Math.pow(1 + annualCpiPct / 100, 1 / 12) - 1;
+}
+
+function shpitzerPayment(balance: number, monthlyRateValue: number, remainingMonths: number): number {
+  if (remainingMonths <= 0 || balance <= 0) return 0;
+  if (monthlyRateValue === 0) return balance / remainingMonths;
+  const factor = Math.pow(1 + monthlyRateValue, remainingMonths);
+  return (balance * monthlyRateValue * factor) / (factor - 1);
+}
+
+function effectiveAnnualRate(track: TrackInput, month: number): number {
+  const futureMonth = track.futureRateMonth ?? 0;
+  const delta = track.futureRateDeltaPct ?? 0;
+  if (futureMonth > 0 && month >= futureMonth) {
+    return Math.max(0, track.annualRatePct + delta);
+  }
+  return Math.max(0, track.annualRatePct);
+}
+
+export function amortize(track: TrackInput): ScheduleRow[] {
+  const meta = TRACKS[track.kind];
+  const cpi = meta.indexed ? monthlyCpi(track.annualCpiPct ?? 0) : 0;
+  const months = clamp(Math.round(track.months || 0), 1, 480);
+  const graceMonths = clamp(Math.round(track.graceMonths ?? 0), 0, Math.min(60, months - 1));
+  const prepaymentType = track.prepaymentType ?? 'none';
+  const prepaymentMonth = clamp(Math.round(track.prepaymentMonth ?? 0), 0, months);
+  const prepaymentAmount = Math.max(0, track.prepaymentAmount ?? 0);
+  const prepaymentMode = track.prepaymentMode ?? 'reduce_payment';
+  const schedule: ScheduleRow[] = [];
+
+  let balance = Math.max(0, track.principal || 0);
+  let lockedPayment: number | null = null;
+
+  for (let month = 1; month <= months && balance > 0.01; month += 1) {
+    const remainingMonths = months - month + 1;
+    const annualRatePct = effectiveAnnualRate(track, month);
+    const rate = monthlyRate(annualRatePct);
+
+    const indexAdjustment = balance * cpi;
+    balance += indexAdjustment;
+
+    const interest = balance * rate;
+    let principal = 0;
+    let regularPayment = interest;
+
+    if (track.method === 'bullet') {
+      if (month === months) {
+        principal = balance;
+        regularPayment = interest + principal;
+      }
+    } else if (month <= graceMonths) {
+      principal = 0;
+      regularPayment = interest;
+    } else if (track.method === 'equal_principal') {
+      principal = balance / remainingMonths;
+      regularPayment = interest + principal;
+      if (lockedPayment && lockedPayment > regularPayment) {
+        principal = Math.min(balance, Math.max(0, lockedPayment - interest));
+        regularPayment = interest + principal;
+      }
+    } else {
+      const computedPayment = shpitzerPayment(balance, rate, remainingMonths);
+      regularPayment = lockedPayment ? Math.max(lockedPayment, computedPayment) : computedPayment;
+      if (month === months) regularPayment = interest + balance;
+      principal = Math.min(balance, Math.max(0, regularPayment - interest));
+      regularPayment = interest + principal;
+    }
+
+    balance = Math.max(0, balance - principal);
+
+    let extraPayment = 0;
+    if (prepaymentType !== 'none' && prepaymentMonth === month && balance > 0.01) {
+      if (prepaymentType === 'full') {
+        extraPayment = balance;
+        balance = 0;
+      } else {
+        extraPayment = Math.min(balance, prepaymentAmount);
+        balance = Math.max(0, balance - extraPayment);
+        if (prepaymentMode === 'shorten_term' && track.method !== 'bullet') {
+          lockedPayment = Math.max(lockedPayment ?? 0, regularPayment);
+        }
+      }
+    }
+
+    schedule.push({
+      month,
+      payment: regularPayment + extraPayment,
+      regularPayment,
+      principal,
+      interest,
+      indexAdjustment,
+      extraPayment,
+      annualRatePct,
+      balance,
+    });
+  }
+
+  return schedule;
+}
+
+export function summarizeTrack(track: TrackInput): TrackSummary {
+  const schedule = amortize(track);
+  const totalPayments = schedule.reduce((sum, row) => sum + row.payment, 0);
+  const totalInterest = schedule.reduce((sum, row) => sum + row.interest, 0);
+  const totalIndex = schedule.reduce((sum, row) => sum + row.indexAdjustment, 0);
+  const totalPrepayments = schedule.reduce((sum, row) => sum + row.extraPayment, 0);
+  const weightedRateNumerator = schedule.reduce((sum, row) => sum + row.annualRatePct * row.regularPayment, 0);
+  const weightedRateDenominator = schedule.reduce((sum, row) => sum + row.regularPayment, 0);
+
+  return {
+    id: track.id,
+    kind: track.kind,
+    method: track.method,
+    schedule,
+    firstPayment: schedule[0]?.payment ?? 0,
+    peakPayment: schedule.reduce((max, row) => Math.max(max, row.payment), 0),
+    totalPayments,
+    totalInterest,
+    totalIndex,
+    totalPrepayments,
+    costPerShekel: track.principal > 0 ? totalPayments / track.principal : 0,
+    effectiveAnnualRatePct: weightedRateDenominator > 0 ? weightedRateNumerator / weightedRateDenominator : track.annualRatePct,
+  };
+}
+
+export function validateMix(tracks: TrackInput[], targetTotal: number): MixValidation {
+  const messages: string[] = [];
+  const sumOfPrincipals = tracks.reduce((sum, track) => sum + (track.principal || 0), 0);
+  const fixedSum = tracks
+    .filter((track) => track.kind === 'fixed_unlinked' || track.kind === 'fixed_linked')
+    .reduce((sum, track) => sum + (track.principal || 0), 0);
+  const shortVariableSum = tracks
+    .filter((track) => TRACKS[track.kind].shortVariable)
+    .reduce((sum, track) => sum + (track.principal || 0), 0);
+  const fixedShare = sumOfPrincipals > 0 ? fixedSum / sumOfPrincipals : 0;
+  const shortVariableShare = sumOfPrincipals > 0 ? shortVariableSum / sumOfPrincipals : 0;
+
+  const totalDelta = Math.abs(sumOfPrincipals - targetTotal);
+  if (targetTotal > 0 && totalDelta > targetTotal * 0.01 + 100) {
+    messages.push(
+      `סך המסלולים (${Math.round(sumOfPrincipals).toLocaleString('he-IL')}) לא תואם לסכום ההלוואה (${Math.round(targetTotal).toLocaleString('he-IL')}).`,
+    );
+  }
+  if (fixedShare < 1 / 3 - 0.001 && sumOfPrincipals > 0) {
+    messages.push(`לפחות שליש מההלוואה צריך להיות במסלול קבוע. כרגע: ${(fixedShare * 100).toFixed(0)}%.`);
+  }
+  if (shortVariableShare > 1 / 3 + 0.001) {
+    messages.push(`מומלץ לא לעבור שליש במסלולים משתנים בתדירות קצרה. כרגע: ${(shortVariableShare * 100).toFixed(0)}%.`);
+  }
+  tracks.forEach((track, index) => {
+    const label = `מסלול ${index + 1}`;
+    if ((track.graceMonths ?? 0) > 60) messages.push(`${label}: גרייס מוגבל עד 60 חודשים.`);
+    if ((track.prepaymentType ?? 'none') !== 'none' && !(track.prepaymentMonth && track.prepaymentMonth > 0)) {
+      messages.push(`${label}: לסילוק עתידי צריך להגדיר חודש.`);
+    }
+    if (track.method === 'bullet' && (track.graceMonths ?? 0) > 0) {
+      messages.push(`${label}: במסלול בוליט אין צורך להגדיר גרייס בנפרד.`);
+    }
+  });
+
+  return {
+    ok: messages.length === 0,
+    messages,
+    totals: { sumOfPrincipals, fixedShare, shortVariableShare },
+  };
+}
+
+export function aggregateMix(tracks: TrackInput[]): MixAggregate {
+  const summaries = tracks.map(summarizeTrack);
+  const longestMonths = summaries.reduce((max, summary) => Math.max(max, summary.schedule.length), 0);
+  const combinedMonthly: { month: number; payment: number; balance: number }[] = [];
+
+  for (let month = 1; month <= longestMonths; month += 1) {
+    let payment = 0;
+    let balance = 0;
+    summaries.forEach((summary) => {
+      const row = summary.schedule[month - 1];
+      if (row) {
+        payment += row.payment;
+        balance += row.balance;
+      }
+    });
+    combinedMonthly.push({ month, payment, balance });
+  }
+
+  const totalPrincipal = tracks.reduce((sum, track) => sum + (track.principal || 0), 0);
+  const totalRepayment = summaries.reduce((sum, summary) => sum + summary.totalPayments, 0);
+  const weightedRateNumerator = tracks.reduce((sum, track) => sum + (track.principal || 0) * (track.annualRatePct || 0), 0);
+
+  return {
+    tracks: summaries,
+    totalPrincipal,
+    firstMonthlyPayment: combinedMonthly[0]?.payment ?? 0,
+    peakMonthlyPayment: combinedMonthly.reduce((max, row) => Math.max(max, row.payment), 0),
+    totalRepayment,
+    totalInterest: summaries.reduce((sum, summary) => sum + summary.totalInterest, 0),
+    totalIndex: summaries.reduce((sum, summary) => sum + summary.totalIndex, 0),
+    totalPrepayments: summaries.reduce((sum, summary) => sum + summary.totalPrepayments, 0),
+    costPerShekel: totalPrincipal > 0 ? totalRepayment / totalPrincipal : 0,
+    weightedRatePct: totalPrincipal > 0 ? weightedRateNumerator / totalPrincipal : 0,
+    combinedMonthly,
+  };
+}
+
+export function defaultMix(totalPrincipal: number, totalMonths = 30 * 12): TrackInput[] {
   const third = Math.round(totalPrincipal / 3 / 1000) * 1000;
-  const remainder = totalPrincipal - 2 * third;
+  const remainder = Math.max(0, totalPrincipal - 2 * third);
   return [
     {
       id: 't1',
