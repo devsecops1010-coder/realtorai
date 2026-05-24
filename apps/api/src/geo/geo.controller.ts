@@ -1,6 +1,7 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { GeoService } from './geo.service';
+import { GeoImporterService } from './geo-importer.service';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Audit } from '../common/decorators/audit.decorator';
@@ -16,7 +17,10 @@ import { Audit } from '../common/decorators/audit.decorator';
  */
 @Controller('geo')
 export class GeoController {
-  constructor(private readonly geo: GeoService) {}
+  constructor(
+    private readonly geo: GeoService,
+    private readonly importer: GeoImporterService,
+  ) {}
 
   @Public()
   @Get('districts')
@@ -97,5 +101,34 @@ export class GeoController {
   @Audit('geo.seed', { targetType: 'geo' })
   seed() {
     return this.geo.seedFromCurated();
+  }
+
+  /**
+   * Pull the full ~1,306-settlement list from CBS / data.gov.il. Runs
+   * synchronously and returns counts. Takes ~30-60s. Idempotent — safe
+   * to re-run; CBS publishes monthly.
+   */
+  @Post('import/settlements')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.platform_admin, UserRole.platform_owner)
+  @Audit('geo.import.settlements', { targetType: 'geo' })
+  importSettlements() {
+    return this.importer.importSettlements();
+  }
+
+  /**
+   * Pull the full ~63,563-street list from CBS / data.gov.il. Runs
+   * synchronously, ~3-5 minutes. Settlements must already be imported.
+   * `?onlyMissing=true` skips settlements that already have streets —
+   * useful for incremental re-imports without redoing the whole load.
+   */
+  @Post('import/streets')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.platform_admin, UserRole.platform_owner)
+  @Audit('geo.import.streets', { targetType: 'geo' })
+  importStreets(@Query('onlyMissing') onlyMissing?: string) {
+    return this.importer.importStreets({
+      onlyMissing: onlyMissing === 'true' || onlyMissing === '1',
+    });
   }
 }

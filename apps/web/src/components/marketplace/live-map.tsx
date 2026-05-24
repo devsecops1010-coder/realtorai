@@ -38,6 +38,21 @@ export interface MapPoint {
 // (e.g. while items are still loading).
 const IL_CENTRE: [number, number] = [31.7683, 35.2137]; // Jerusalem-ish
 const IL_DEFAULT_ZOOM = 8;
+const DEFAULT_FIT_PADDING: [number, number] = [40, 40];
+
+const TILE_LAYERS = {
+  standard: {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  },
+  light: {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  },
+} as const;
+
+type TileStyle = keyof typeof TILE_LAYERS;
 
 function formatShort(price: number | null): string {
   if (!price) return 'נכס';
@@ -62,15 +77,40 @@ function formatPriceFull(price: number | null, dealType: 'sale' | 'rent'): strin
  * that entirely. The marker is a brand-pill (white card) and becomes a
  * gradient-violet chip when selected.
  */
-function buildPriceIcon(label: string, active: boolean): L.DivIcon {
-  const className = active
-    ? 'rai-marker rai-marker-active'
-    : 'rai-marker';
+function buildPriceIcon(label: string, active: boolean, compact: boolean): L.DivIcon {
+  const className = ['rai-marker', compact ? 'rai-marker-compact' : null, active ? 'rai-marker-active' : null]
+    .filter(Boolean)
+    .join(' ');
   return L.divIcon({
     html: `<div class="${className}">${label}</div>`,
     className: 'rai-marker-wrapper',
-    iconSize: [56, 32],
-    iconAnchor: [28, 32],
+    iconSize: compact ? [50, 28] : [56, 32],
+    iconAnchor: compact ? [25, 28] : [28, 32],
+  });
+}
+
+function spreadOverlappingPoints(points: MapPoint[], precision: number, spreadRadius: number): MapPoint[] {
+  const groups = new Map<string, MapPoint[]>();
+
+  for (const point of points) {
+    const key = `${point.lat.toFixed(precision)}:${point.lng.toFixed(precision)}`;
+    groups.set(key, [...(groups.get(key) ?? []), point]);
+  }
+
+  return points.map((point) => {
+    const key = `${point.lat.toFixed(precision)}:${point.lng.toFixed(precision)}`;
+    const group = groups.get(key);
+    if (!group || group.length === 1) return point;
+
+    const index = group.findIndex((candidate) => candidate.id === point.id);
+    const radius = spreadRadius + Math.floor(index / 8) * (spreadRadius / 2);
+    const angle = (Math.PI * 2 * index) / group.length;
+
+    return {
+      ...point,
+      lat: point.lat + Math.cos(angle) * radius,
+      lng: point.lng + Math.sin(angle) * radius,
+    };
   });
 }
 
@@ -78,13 +118,13 @@ function buildPriceIcon(label: string, active: boolean): L.DivIcon {
  * Refits the map view to enclose all current points whenever they
  * change. Runs as a child of MapContainer so it can use the useMap hook.
  */
-function AutoFit({ points }: { points: MapPoint[] }) {
+function AutoFit({ points, padding, maxZoom }: { points: MapPoint[]; padding: [number, number]; maxZoom: number }) {
   const map = useMap();
   useEffect(() => {
     if (points.length === 0) return;
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-  }, [points, map]);
+    map.fitBounds(bounds, { padding, maxZoom });
+  }, [points, map, padding, maxZoom]);
   return null;
 }
 
@@ -106,16 +146,40 @@ export function LiveMap({
   points,
   selectedId,
   onSelect,
+  collisionPrecision = 5,
+  collisionSpread = 0.006,
+  compactMarkers = false,
+  fitMaxZoom = 14,
+  fitPadding = DEFAULT_FIT_PADDING,
+  minHeight = 420,
+  scrollWheelZoom = true,
+  tileStyle = 'standard',
+  zoomControl = true,
 }: {
   points: MapPoint[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  collisionPrecision?: number;
+  collisionSpread?: number;
+  compactMarkers?: boolean;
+  fitMaxZoom?: number;
+  fitPadding?: [number, number];
+  minHeight?: number;
+  scrollWheelZoom?: boolean;
+  tileStyle?: TileStyle;
+  zoomControl?: boolean;
 }) {
   const validPoints = useMemo(
-    () => points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)),
-    [points],
+    () =>
+      spreadOverlappingPoints(
+        points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)),
+        collisionPrecision,
+        collisionSpread,
+      ),
+    [points, collisionPrecision, collisionSpread],
   );
   const selectedPoint = validPoints.find((p) => p.id === selectedId) ?? null;
+  const tileLayer = TILE_LAYERS[tileStyle];
   // The markers should reflect "active" state so they restyle when the
   // user clicks a row in the side list. We rebuild icons inline per
   // render rather than memoize — there's at most ~30 points per page.
@@ -146,6 +210,13 @@ export function LiveMap({
         transition: transform .15s ease, box-shadow .15s ease;
       }
       .rai-marker:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.18); }
+      .rai-marker-compact {
+        min-width: 44px;
+        height: 28px;
+        padding: 0 9px;
+        font-size: 12px;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.15), 0 1px 3px rgba(15, 23, 42, 0.10);
+      }
       .rai-marker-active {
         background: linear-gradient(135deg, hsl(262 83% 58%), hsl(320 85% 65%));
         color: #ffffff;
@@ -157,6 +228,10 @@ export function LiveMap({
       .leaflet-popup-content { margin: 10px 12px; font-family: 'Heebo', system-ui, sans-serif; direction: rtl; }
       /* RTL fix for the close button — Leaflet positions it absolutely. */
       .leaflet-popup-close-button { right: auto !important; left: 4px !important; }
+      .leaflet-hero-map .leaflet-control-attribution {
+        font-size: 9px;
+        opacity: .55;
+      }
     `;
     document.head.appendChild(style);
     styleInjectedRef.current = true;
@@ -174,19 +249,20 @@ export function LiveMap({
     <MapContainer
       center={IL_CENTRE}
       zoom={IL_DEFAULT_ZOOM}
-      scrollWheelZoom={true}
-      className="h-full w-full"
-      style={{ minHeight: 420, background: 'hsl(var(--muted))' }}
+      zoomControl={zoomControl}
+      scrollWheelZoom={scrollWheelZoom}
+      className={compactMarkers ? 'leaflet-hero-map h-full w-full' : 'h-full w-full'}
+      style={{ minHeight, background: 'hsl(var(--muted))' }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={tileLayer.attribution}
+        url={tileLayer.url}
         // Hebrew sub-tiles aren't part of the default OSM set; the standard
         // mapnik renderer ships English/transliterated city labels, which
         // is fine for our use (the property pills carry the price/area
         // info the user actually needs).
       />
-      <AutoFit points={validPoints} />
+      <AutoFit points={validPoints} padding={fitPadding} maxZoom={fitMaxZoom} />
       <FlyToSelected point={selectedPoint} />
       {validPoints.map((p) => {
         const active = p.id === selectedId;
@@ -194,7 +270,7 @@ export function LiveMap({
           <Marker
             key={p.id}
             position={[p.lat, p.lng]}
-            icon={buildPriceIcon(formatShort(p.price), active)}
+            icon={buildPriceIcon(formatShort(p.price), active, compactMarkers)}
             eventHandlers={{ click: () => onSelect(p.id) }}
           >
             <Popup>

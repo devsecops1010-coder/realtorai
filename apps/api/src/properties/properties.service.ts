@@ -54,6 +54,50 @@ export class PropertiesService {
    * Returns 404 if the property doesn't exist or isn't `active` — drafts,
    * pending and sold properties stay invisible to the public.
    */
+  /**
+   * Resolves the canonical Hebrew city + street + lat/lng from the
+   * caller's IL geo selections. Returns nulls for anything the caller
+   * didn't pick — caller decides whether to override the free-text
+   * field or leave it alone.
+   *
+   * Defensive about missing rows: a stale `settlementId` (e.g. data
+   * removed between page load and submit) silently degrades to nulls
+   * rather than throwing. We'd rather save the property than reject it
+   * because some FK isn't there any more.
+   */
+  private async resolveStructuredAddress(dto: {
+    settlementId?: string;
+    streetId?: string;
+    houseNumber?: number;
+  }): Promise<{ city: string | null; street: string | null; latitude: number | null; longitude: number | null }> {
+    let city: string | null = null;
+    let street: string | null = null;
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+
+    if (dto.settlementId) {
+      const s = await this.prisma.unscoped().ilSettlement.findUnique({
+        where: { id: dto.settlementId },
+        select: { nameHe: true, latitude: true, longitude: true },
+      });
+      if (s) {
+        city = s.nameHe;
+        latitude = s.latitude;
+        longitude = s.longitude;
+      }
+    }
+    if (dto.streetId) {
+      const st = await this.prisma.unscoped().ilStreet.findUnique({
+        where: { id: dto.streetId },
+        select: { nameHe: true },
+      });
+      if (st) {
+        street = dto.houseNumber ? `${st.nameHe} ${dto.houseNumber}` : st.nameHe;
+      }
+    }
+    return { city, street, latitude, longitude };
+  }
+
   async publicGetById(id: string) {
     const property = await this.prisma.unscoped().property.findFirst({
       where: { id, status: PropertyStatus.active },
@@ -255,13 +299,24 @@ export class PropertiesService {
       if (!lead) throw new NotFoundException('Owner lead not found');
     }
 
+    // Structured address resolution: if the caller picked a settlement
+    // / street from the geo autocomplete, pull the canonical Hebrew
+    // names + centroid coords so the free-text fields and map marker
+    // stay consistent with the IL gazetteer.
+    const resolvedGeo = await this.resolveStructuredAddress(dto);
+
     const data: Omit<Prisma.PropertyUncheckedCreateInput, 'tenantId'> = {
       officeId,
       ownerLeadId: dto.ownerLeadId ?? null,
       dealType: dto.dealType,
-      city: dto.city ?? null,
+      city: resolvedGeo.city ?? dto.city ?? null,
       area: dto.area ?? null,
-      street: dto.street ?? null,
+      street: resolvedGeo.street ?? dto.street ?? null,
+      settlementId: dto.settlementId ?? null,
+      streetId: dto.streetId ?? null,
+      houseNumber: dto.houseNumber ?? null,
+      latitude: dto.latitude ?? resolvedGeo.latitude ?? null,
+      longitude: dto.longitude ?? resolvedGeo.longitude ?? null,
       rooms: dto.rooms ?? null,
       floor: dto.floor ?? null,
       price: dto.price ?? null,
@@ -305,6 +360,26 @@ export class PropertiesService {
     if (dto.condition !== undefined) data.condition = dto.condition;
     if (dto.coverImageUrl !== undefined) data.coverImageUrl = dto.coverImageUrl;
     if (dto.galleryUrls !== undefined) data.galleryUrls = dto.galleryUrls as Prisma.InputJsonValue;
+    // Structured address — same resolution as create() so picking a
+    // settlement from the autocomplete propagates to free-text city +
+    // lat/lng automatically.
+    if (
+      dto.settlementId !== undefined ||
+      dto.streetId !== undefined ||
+      dto.houseNumber !== undefined
+    ) {
+      const resolved = await this.resolveStructuredAddress(dto);
+      if (dto.settlementId !== undefined) data.settlementId = dto.settlementId;
+      if (dto.streetId !== undefined) data.streetId = dto.streetId;
+      if (dto.houseNumber !== undefined) data.houseNumber = dto.houseNumber;
+      if (resolved.city !== null) data.city = resolved.city;
+      if (resolved.street !== null) data.street = resolved.street;
+      // Only overwrite lat/lng if the caller didn't send their own.
+      if (dto.latitude === undefined && resolved.latitude !== null) data.latitude = resolved.latitude;
+      if (dto.longitude === undefined && resolved.longitude !== null) data.longitude = resolved.longitude;
+    }
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
     // Amenities — only touch what the caller sent; an omitted amenity
     // stays unchanged so partial updates don't reset the checklist.
     if (dto.hasParking !== undefined) data.hasParking = dto.hasParking;

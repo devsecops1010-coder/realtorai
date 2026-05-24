@@ -8,23 +8,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AddressPicker, EMPTY_ADDRESS, type AddressValue } from '@/components/geo/address-picker';
 import type { Property, PropertyCondition, PropertyDealType } from '@/lib/types';
 
 const conditions: PropertyCondition[] = ['new', 'excellent', 'good', 'needs_renovation', 'for_demolition'];
 
 export default function NewPropertyPage() {
   const router = useRouter();
+  // Split the form into "non-address" + the AddressPicker's value. Keeps
+  // each control responsible for its own slice of state and lets the
+  // address picker stay reusable.
   const [form, setForm] = useState({
     dealType: 'sale' as PropertyDealType,
-    city: '',
     area: '',
-    street: '',
     rooms: '',
     floor: '',
     price: '',
     condition: '' as PropertyCondition | '',
     notes: '',
   });
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,10 +40,18 @@ export default function NewPropertyPage() {
     setLoading(true);
     setError(null);
     try {
+      // Build the request body. Both free-text + structured ids are
+      // sent — the service uses settlementId/streetId as the source of
+      // truth and backfills city/street from them.
       const body: Record<string, unknown> = { dealType: form.dealType };
-      if (form.city) body.city = form.city;
+      if (address.city) body.city = address.city;
       if (form.area) body.area = form.area;
-      if (form.street) body.street = form.street;
+      if (address.street) body.street = address.street;
+      if (address.settlementId) body.settlementId = address.settlementId;
+      if (address.streetId) body.streetId = address.streetId;
+      if (address.houseNumber !== null) body.houseNumber = address.houseNumber;
+      if (address.latitude !== null) body.latitude = address.latitude;
+      if (address.longitude !== null) body.longitude = address.longitude;
       if (form.rooms) body.rooms = parseFloat(form.rooms);
       if (form.floor) body.floor = parseInt(form.floor, 10);
       if (form.price) body.price = parseInt(form.price, 10);
@@ -64,7 +75,7 @@ export default function NewPropertyPage() {
           <CardTitle>פרטים</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dealType">סוג עסקה</Label>
@@ -79,17 +90,29 @@ export default function NewPropertyPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">עיר</Label>
-                <Input id="city" value={form.city} onChange={(e) => set('city', e.target.value)} />
+                <Label htmlFor="area">אזור / שכונה</Label>
+                <Input id="area" value={form.area} onChange={(e) => set('area', e.target.value)} placeholder="לדוגמה: צפון ישן" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="area">אזור</Label>
-                <Input id="area" value={form.area} onChange={(e) => set('area', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="street">רחוב</Label>
-                <Input id="street" value={form.street} onChange={(e) => set('street', e.target.value)} />
-              </div>
+            </div>
+
+            {/* Structured address from the IL geo dataset (1,306 cities,
+                63,563 streets). Auto-geocodes lat/lng from the chosen
+                settlement so the marketplace map shows the property
+                without manual coords. */}
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <Label className="text-sm font-semibold">כתובת מלאה</Label>
+              <AddressPicker value={address} onChange={setAddress} />
+              {address.settlementId && (
+                <p className="text-xs text-muted-foreground">
+                  הקואורדינטות יחושבו אוטומטית ממרכז העיר
+                  {address.latitude !== null && (
+                    <> ({address.latitude.toFixed(4)}, {address.longitude?.toFixed(4)})</>
+                  )}.
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rooms">חדרים</Label>
                 <Input id="rooms" type="number" step="0.5" value={form.rooms} onChange={(e) => set('rooms', e.target.value)} />

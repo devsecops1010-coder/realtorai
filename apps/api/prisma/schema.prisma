@@ -763,6 +763,17 @@ model Property {
   condition     PropertyCondition?
   coverImageUrl String?
   galleryUrls   Json?
+  // Structured address — when filled from the IL geo autocomplete, lets
+  // us auto-populate latitude/longitude from the chosen settlement and
+  // makes future filtering ("everything on this street") trivial.
+  // `houseNumber` is a free integer because there's no comprehensive
+  // open dataset of street→house numbers in Israel (Israel Post's DB is
+  // commercial); a free input + later GovMap integration is the path.
+  settlementId  String?
+  settlement    IlSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  streetId      String?
+  street_       IlStreet?     @relation(fields: [streetId], references: [id], onDelete: SetNull, name: "PropertyStreet")
+  houseNumber   Int?
   // Geo coordinates — surfaced on the marketplace map. Nullable: when
   // missing we fall back to the city-centroid lookup at render time, so
   // every active property still shows somewhere on the map (in the city
@@ -1191,6 +1202,7 @@ model IlSettlement {
   // autocomplete results so big cities surface first.
   population    Int?
   streets       IlStreet[]
+  properties    Property[]
   @@index([districtId])
   @@index([subDistrictId])
   // Trigram search would be nicer but Postgres pg_trgm isn't installed
@@ -1208,6 +1220,7 @@ model IlStreet {
   code         Int                                                 // CBS street code (unique within settlement)
   nameHe       String
   nameEn       String?
+  properties   Property[]   @relation("PropertyStreet")
   @@unique([settlementId, code])
   @@index([settlementId, nameHe])
   @@index([nameHe])

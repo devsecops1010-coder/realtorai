@@ -40,6 +40,16 @@ export class CreatePropertyDto {
   @Length(1, 200)
   street?: string;
 
+  // Structured address from the IL geo autocomplete. All optional —
+  // a property created via bulk-upload or the AI agent doesn't get
+  // them set. When `settlementId` is provided the service will
+  // backfill `city` + auto-geocode from the settlement centroid.
+  @IsOptional() @IsUUID() settlementId?: string;
+  @IsOptional() @IsUUID() streetId?: string;
+  @IsOptional() @IsInt() @Min(0) houseNumber?: number;
+  @IsOptional() @IsNumber() latitude?: number;
+  @IsOptional() @IsNumber() longitude?: number;
+
   @IsOptional()
   @IsNumber()
   @Min(0)
