@@ -61,7 +61,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-fuchsia-500 grid place-items-center">
+            {/* Mobile brand chip — same gradient anchors as the marketing
+                nav + sidebar so the brand reads identically on every
+                screen size. */}
+            <div className="h-7 w-7 rounded-lg bg-[linear-gradient(135deg,hsl(var(--grad-from))_0%,hsl(var(--grad-to))_100%)] grid place-items-center">
               <Sparkles className="h-3.5 w-3.5 text-white" />
             </div>
             <span className="font-bold">Realtorai</span>

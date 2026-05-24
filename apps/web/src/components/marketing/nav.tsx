@@ -27,8 +27,11 @@ export function MarketingNav() {
       }
     >
       <div className="container mx-auto flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 font-bold text-lg">
-          <div className="h-8 w-8 rounded-lg bg-primary grid place-items-center shadow-soft">
+        <Link href="/" className="flex items-center gap-2.5 font-bold text-lg group">
+          {/* Logo chip uses the brand gradient so it reads as "Realtorai
+              brand" rather than a flat color block. Shadow-glow on hover
+              gives a tactile micro-reward. */}
+          <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,hsl(var(--grad-from))_0%,hsl(var(--grad-to))_100%)] grid place-items-center shadow-soft group-hover:shadow-glow transition-shadow">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           Realtorai

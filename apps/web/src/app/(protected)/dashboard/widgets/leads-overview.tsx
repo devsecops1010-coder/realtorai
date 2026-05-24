@@ -58,14 +58,14 @@ function Tile({
   return (
     <Link
       href={href}
-      className="relative rounded-lg border bg-gradient-to-br p-3 hover:border-primary/40 transition group focus:outline-none"
+      className="relative rounded-xl border bg-card p-3 hover:border-primary/40 hover:shadow-lift hover:-translate-y-px transition-all duration-200 group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${bg} pointer-events-none rounded-lg`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${bg} pointer-events-none rounded-xl opacity-70 group-hover:opacity-100 transition-opacity`} />
       <div className="relative flex items-center justify-between mb-1">
         <span className="text-xs text-muted-foreground">{label}</span>
         <Icon className={`h-3.5 w-3.5 ${color}`} />
       </div>
-      <div className="relative text-2xl font-bold tabular-nums">{value.toLocaleString()}</div>
+      <div className="relative text-2xl font-bold tabular-nums tracking-tight">{value.toLocaleString()}</div>
     </Link>
   );
 }

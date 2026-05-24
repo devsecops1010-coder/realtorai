@@ -158,7 +158,9 @@ export function Sidebar() {
     <aside className="w-72 border-l bg-card/90 backdrop-blur flex flex-col h-screen sticky top-0">
       <div className="p-5 border-b">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-teal-600 to-amber-500 grid place-items-center shadow-soft">
+          {/* Unified brand chip — same gradient as marketing nav so the
+              user feels they're in the same product after logging in. */}
+          <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,hsl(var(--grad-from))_0%,hsl(var(--grad-to))_100%)] grid place-items-center shadow-soft">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <span className="font-bold text-lg">Realtorai</span>

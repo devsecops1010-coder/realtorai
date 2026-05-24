@@ -1,9 +1,17 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+// `rounded-xl` (was `rounded-lg`) for a slightly more modern look —
+// matches the new badge / button radii and tracks the v2 token bump from
+// 0.5rem to 0.625rem. Soft default shadow + a subtle border give cards a
+// premium "elevated paper" feel without being heavy.
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('rounded-xl border bg-card text-card-foreground shadow-soft', className)}
+      {...props}
+    />
   ),
 );
 Card.displayName = 'Card';

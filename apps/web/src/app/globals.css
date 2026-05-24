@@ -2,61 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Realtorai design tokens — v2 refresh.
+ *
+ * Why violet now (was teal): the PWA app icon, every AI-related card
+ * (insights / matches / quick-reply / pricing ROI), and the entire
+ * onboarding wizard already used a violet→fuchsia gradient. The old teal
+ * primary clashed with all of it. Unifying on violet brings the brand into
+ * a single coherent palette so the marketing landing, login, dashboard and
+ * AI surfaces all feel like the same product.
+ *
+ * The gradient anchors (`--grad-from/via/to`) are tuned so `.text-gradient`
+ * and `bg-mesh` keep working as drop-in utilities — no component needs to
+ * change to inherit the new look.
+ */
+
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 240 10% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 240 10% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 240 10% 10%;
 
-    --primary: 171 68% 32%;
+    /* Violet 600 (#7c3aed) — modern, high-contrast against white, plays
+       nicely with both light and dark mode. */
+    --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 10%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
 
-    --accent: 38 92% 95%;
-    --accent-foreground: 30 70% 28%;
+    /* Soft violet accent — replaces the prior amber. Used by hover/focus
+       backgrounds (sidebar items, command palette selection, etc). */
+    --accent: 263 70% 96%;
+    --accent-foreground: 262 60% 30%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 171 68% 32%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 262 83% 58%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
-    --grad-from: 171 68% 32%;
-    --grad-via: 199 89% 48%;
-    --grad-to: 38 92% 50%;
+    /* Brand gradient anchors — used by .text-gradient, .bg-mesh, the
+       primary-gradient button variant, etc. Pick three nearby hues for
+       a clean visual sweep instead of a noisy rainbow. */
+    --grad-from: 262 83% 58%; /* violet 600 */
+    --grad-via:  290 84% 60%; /* fuchsia */
+    --grad-to:   320 85% 65%; /* pink */
   }
 
   .dark {
-    --background: 180 25% 7%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
-    --popover: 224 71% 4%;
-    --popover-foreground: 215 20% 65%;
-    --primary: 170 74% 42%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 222 47% 11%;
-    --secondary-foreground: 213 31% 91%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 39 48% 18%;
-    --accent-foreground: 213 31% 91%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 213 31% 91%;
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-    --ring: 170 74% 42%;
+    /* Deeper, more saturated blacks — feels like a premium "OLED" theme
+       rather than the washed-out slate of v1. */
+    --background: 240 14% 6%;
+    --foreground: 240 5% 96%;
+    --card: 240 12% 9%;
+    --card-foreground: 240 5% 96%;
+    --popover: 240 12% 9%;
+    --popover-foreground: 240 5% 90%;
+
+    /* Slightly brighter primary in dark — needed to pop against dark cards. */
+    --primary: 268 92% 70%;
+    --primary-foreground: 240 14% 6%;
+
+    --secondary: 240 8% 14%;
+    --secondary-foreground: 240 5% 96%;
+
+    --muted: 240 8% 14%;
+    --muted-foreground: 240 4% 60%;
+
+    --accent: 263 35% 18%;
+    --accent-foreground: 263 80% 90%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 7% 18%;
+    --input: 240 7% 18%;
+    --ring: 268 92% 70%;
   }
 }
 
@@ -74,12 +105,17 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   h1, h2, h3, h4 {
-    letter-spacing: 0;
+    letter-spacing: -0.015em; /* subtle modern tightening — applies to all headings */
+  }
+  /* Display tracking for hero-sized headings. Tighter than h1-h4 above. */
+  .text-display {
+    letter-spacing: -0.03em;
+    line-height: 1.05;
   }
 }
 
 @layer utilities {
-  /* Gradient text */
+  /* Gradient text — anchors driven by tokens so theme switches don't break it. */
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(
@@ -89,48 +125,92 @@
       hsl(var(--grad-to)) 100%
     );
   }
+  /* Animated gradient text — slow shimmer. Use sparingly (hero only). */
+  .text-gradient-animated {
+    @apply text-gradient;
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+  }
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
 
+  /* Soft brand-tinted background wash for hero sections / marketing bands. */
   .bg-mesh {
     background:
-      linear-gradient(135deg, hsl(var(--grad-from) / 0.08), transparent 35%),
-      linear-gradient(315deg, hsl(var(--grad-to) / 0.10), transparent 40%),
+      radial-gradient(60% 50% at 10% 10%, hsl(var(--grad-from) / 0.10) 0%, transparent 60%),
+      radial-gradient(50% 50% at 90% 20%, hsl(var(--grad-to)   / 0.10) 0%, transparent 60%),
+      radial-gradient(40% 60% at 50% 100%, hsl(var(--grad-via) / 0.08) 0%, transparent 60%),
       hsl(var(--background));
   }
   .bg-mesh-strong {
     background:
-      linear-gradient(135deg, hsl(var(--grad-from) / 0.14), transparent 38%),
-      linear-gradient(315deg, hsl(var(--grad-to) / 0.14), transparent 42%),
+      radial-gradient(60% 50% at 10% 10%, hsl(var(--grad-from) / 0.18) 0%, transparent 60%),
+      radial-gradient(50% 50% at 90% 20%, hsl(var(--grad-to)   / 0.18) 0%, transparent 60%),
+      radial-gradient(40% 60% at 50% 100%, hsl(var(--grad-via) / 0.14) 0%, transparent 60%),
       hsl(var(--background));
   }
 
-  /* Glass card */
+  /* Single-point radial spotlight — great behind hero headlines. */
+  .bg-spotlight {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, hsl(var(--grad-from) / 0.18), transparent 70%),
+      hsl(var(--background));
+  }
+
+  /* Subtle grid overlay — high-tech "blueprint" feel. Pair with bg-mesh. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right,  hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Glass cards — used for floating overlays + the cmd palette. */
   .glass {
     background: hsl(var(--card) / 0.7);
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
+  .glass-strong {
+    background: hsl(var(--card) / 0.85);
+    backdrop-filter: saturate(200%) blur(28px);
+    -webkit-backdrop-filter: saturate(200%) blur(28px);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
 
-  /* Subtle elevations */
+  /* Elevation stack — soft (cards), lift (hover), glow (CTA), premium (hero). */
   .shadow-soft {
-    box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04),
-                0 4px 16px hsl(var(--foreground) / 0.04);
+    box-shadow:
+      0 1px 2px hsl(var(--foreground) / 0.04),
+      0 4px 16px hsl(var(--foreground) / 0.04);
   }
   .shadow-lift {
-    box-shadow: 0 1px 3px hsl(var(--foreground) / 0.05),
-                0 10px 30px hsl(var(--foreground) / 0.08);
+    box-shadow:
+      0 1px 3px hsl(var(--foreground) / 0.05),
+      0 10px 30px hsl(var(--foreground) / 0.08);
   }
   .shadow-glow {
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.1),
-                0 8px 30px hsl(var(--primary) / 0.2);
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.12),
+      0 8px 30px hsl(var(--primary) / 0.22);
+  }
+  /* "Premium" stack — dual-layer with brand tint for marketing cards. */
+  .shadow-premium {
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.5) inset,
+      0 2px 8px hsl(var(--foreground) / 0.06),
+      0 24px 60px -20px hsl(var(--grad-from) / 0.25);
   }
 
-  /* Subtle dotted background */
+  /* Subtle dotted background — used by hero. */
   .bg-dots {
     background-image: radial-gradient(hsl(var(--foreground) / 0.08) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
-  /* Brand button effect */
+  /* Brand button effect — a shine sweep across primary CTAs. */
   .btn-shine {
     position: relative;
     overflow: hidden;
@@ -147,7 +227,7 @@
     transform: translateX(100%);
   }
 
-  /* RTL-aware spacings (Tailwind handles most but these help) */
+  /* RTL-aware ticker — used on the marketing logo strip. */
   .marquee {
     animation: marquee 20s linear infinite;
   }
@@ -156,12 +236,21 @@
     100% { transform: translateX(-50%); }
   }
 
-  /* Fade-in for above-the-fold */
+  /* Above-the-fold reveal. */
   .animate-fade-up {
     animation: fadeUp 0.6s ease-out both;
   }
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Slow float — used on decorative blobs in the hero spotlight. */
+  .animate-float {
+    animation: float 7s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
   }
 }
