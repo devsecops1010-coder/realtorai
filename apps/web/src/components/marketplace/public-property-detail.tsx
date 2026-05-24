@@ -14,22 +14,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-
-// Mortgage calculator is large (~11 kB + the engine). Dynamic-import so
-// it only loads when the user expands the "מחשבון משכנתא" section. Most
-// visitors browse photos + amenities and never open it.
-const FullMortgageCalculator = dynamic(
-  () => import('@/components/tools/mortgage-calculator').then((m) => m.MortgageCalculator),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="grid place-items-center py-10 text-sm text-muted-foreground">
-        טוען מחשבון...
-      </div>
-    ),
-  },
-);
+import { PropertyMortgageCalc } from './property-mortgage-calc';
 import {
   Home, MapPin, Layers, Calendar, Phone, MessageCircle, Heart, Scale, Share2,
   Building2, ShieldCheck, Sparkles, Calculator, Loader2, CheckCircle2, AlertTriangle,
@@ -604,10 +589,10 @@ function MortgagePreview({ price, dealType }: { price: number | null; dealType: 
           : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
       </button>
       {open && (
-        // Inset background so the embedded calculator's own cards have
-        // somewhere to "sit" without doubling up borders.
+        // Inset on bg so the calc's own cards don't double-stroke.
+        // Compact calc fits the narrow main column without overflow.
         <div className="border-t bg-background p-4 md:p-5">
-          <FullMortgageCalculator initialPrice={price} />
+          <PropertyMortgageCalc price={price} />
         </div>
       )}
     </section>
