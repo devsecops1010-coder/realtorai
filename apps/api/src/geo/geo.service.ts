@@ -17,6 +17,59 @@ import { IL_NEIGHBORHOODS } from './il-neighborhoods-seed-data';
  *
  * Not tenant-scoped — every tenant sees the same Israel.
  */
+/**
+ * Hebrew has two co-existing spelling systems for the same word:
+ * כתיב מלא (with vowel letters — "חיסכון") and כתיב חסר (without —
+ * "חסכון"). The CBS street dataset uses the traditional כתיב חסר,
+ * but operators usually type the modern כתיב מלא. Without bridging
+ * the two, searches like "חיסכון" return zero results even though
+ * "חסכון" exists in 20+ cities.
+ *
+ * Strategy: generate up to a few candidate spellings from the query
+ * by toggling middle vowel letters (yud + vav) on and off. We OR
+ * them in the WHERE clause so any variant hits. Cap at 8 variants
+ * so we don't explode the SQL when the user types a long string —
+ * past that we're better off matching the original verbatim.
+ *
+ * This is a simple heuristic, not a full morphological normaliser
+ * (no Niqud handling, no א/ע/ה swaps). It hits the cases that
+ * actually bite users: missing/extra yud (חיסכון/חסכון, יצחק/יצחק),
+ * missing/extra vav (יהושע/יהשע, רחבעם/רחובעם).
+ */
+function hebrewSpellingVariants(q: string): string[] {
+  const variants = new Set<string>([q]);
+  const isHebrew = /[א-ת]/.test(q);
+  if (!isHebrew) return Array.from(variants);
+
+  // Strip every middle yud at once → covers the most common case
+  // (חיסכון → חסכון). The regex requires Hebrew letter on both
+  // sides so we don't touch a yud at start/end of a word.
+  const noYud = q.replace(/([א-ת])י([א-ת])/g, '$1$2');
+  if (noYud !== q) variants.add(noYud);
+
+  // Same for vav (רחובעם → רחבעם).
+  const noVav = q.replace(/([א-ת])ו([א-ת])/g, '$1$2');
+  if (noVav !== q) variants.add(noVav);
+
+  // And both together for the rare double-vowel case.
+  const noBoth = noYud.replace(/([א-ת])ו([א-ת])/g, '$1$2');
+  if (noBoth !== q && noBoth !== noYud && noBoth !== noVav) variants.add(noBoth);
+
+  return Array.from(variants).slice(0, 8);
+}
+
+/**
+ * Build an OR clause of contains-matches across multiple Hebrew
+ * spelling variants. Used by every searchX method below so a user
+ * typing either spelling finds the data regardless of which one
+ * CBS happened to use.
+ */
+function hebrewContainsAny(field: 'nameHe' | 'nameEn', q: string) {
+  return hebrewSpellingVariants(q).map((v) => ({
+    [field]: { contains: v, mode: 'insensitive' as const },
+  }));
+}
+
 @Injectable()
 export class GeoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -55,9 +108,11 @@ export class GeoService {
         ...(opts.districtId && { districtId: opts.districtId }),
         ...(opts.subDistrictId && { subDistrictId: opts.subDistrictId }),
         ...(q.length >= 2 && {
+          // Match either spelling variant (כתיב מלא / חסר) so the user
+          // doesn't have to guess which one CBS used.
           OR: [
-            { nameHe: { contains: q, mode: 'insensitive' } },
-            { nameEn: { contains: q, mode: 'insensitive' } },
+            ...hebrewContainsAny('nameHe', q),
+            ...hebrewContainsAny('nameEn', q),
           ],
         }),
       },
@@ -105,8 +160,8 @@ export class GeoService {
         settlementId: opts.settlementId,
         ...(q.length >= 1 && {
           OR: [
-            { nameHe: { contains: q, mode: 'insensitive' } },
-            { nameEn: { contains: q, mode: 'insensitive' } },
+            ...hebrewContainsAny('nameHe', q),
+            ...hebrewContainsAny('nameEn', q),
           ],
         }),
       },
@@ -130,9 +185,13 @@ export class GeoService {
       where: {
         settlementId: opts.settlementId,
         ...(q.length >= 1 && {
+          // Critical for streets — CBS uses כתיב חסר ("חסכון") while
+          // operators usually type כתיב מלא ("חיסכון"). Without the
+          // variant expansion ~half of the practical street searches
+          // come up empty.
           OR: [
-            { nameHe: { contains: q, mode: 'insensitive' } },
-            { nameEn: { contains: q, mode: 'insensitive' } },
+            ...hebrewContainsAny('nameHe', q),
+            ...hebrewContainsAny('nameEn', q),
           ],
         }),
       },
@@ -155,8 +214,8 @@ export class GeoService {
       this.prisma.unscoped().ilSettlement.findMany({
         where: {
           OR: [
-            { nameHe: { contains: trimmed, mode: 'insensitive' } },
-            { nameEn: { contains: trimmed, mode: 'insensitive' } },
+            ...hebrewContainsAny('nameHe', trimmed),
+            ...hebrewContainsAny('nameEn', trimmed),
           ],
         },
         orderBy: { population: 'desc' },
@@ -164,7 +223,9 @@ export class GeoService {
         select: { id: true, nameHe: true, nameEn: true, population: true },
       }),
       this.prisma.unscoped().ilStreet.findMany({
-        where: { nameHe: { contains: trimmed, mode: 'insensitive' } },
+        where: {
+          OR: hebrewContainsAny('nameHe', trimmed),
+        },
         take,
         orderBy: { nameHe: 'asc' },
         select: {
