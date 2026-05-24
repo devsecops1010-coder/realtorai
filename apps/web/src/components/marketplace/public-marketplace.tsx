@@ -1,17 +1,11 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { MapPoint } from './live-map';
-import { CityAutocomplete } from '@/components/geo/city-autocomplete';
-import {
-  HierarchicalSearch,
-  EMPTY_HIERARCHICAL_SEARCH,
-  type HierarchicalSearchValue,
-} from '@/components/geo/hierarchical-search';
-import { MarketSearchAutocomplete } from './market-search-autocomplete';
+import { MarketplaceSearchPanel, EMPTY_FILTERS, type MarketFilters } from './marketplace-search-panel';
 
 // Leaflet touches `window` on import — it must not run on the server.
 // Dynamic-import with ssr:false isolates the map bundle (~40 kB) to the
@@ -31,8 +25,6 @@ import {
   Building2,
   Calculator,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Heart,
   Home,
   Layers,
@@ -43,10 +35,8 @@ import {
   Phone,
   Printer,
   Scale,
-  Search,
   Send,
   SlidersHorizontal,
-  Star,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +46,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-type DealType = 'sale' | 'rent' | '';
 type MarketView = 'list' | 'map' | 'insights';
 
 interface PublicProperty {
@@ -117,9 +106,13 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
   // controls own the state — we don't write back to the URL on every
   // keystroke (would spam history + break the back button).
   const searchParams = useSearchParams();
-  const [filters, setFilters] = useState(() => ({
+  // Initial filters come from URL params (hero deep-link, share link).
+  // After load, `MarketplaceSearchPanel` owns the filter state and
+  // streams updates back via `onChange` — we re-fetch on every change.
+  const [filters, setFilters] = useState<MarketFilters>(() => ({
+    ...EMPTY_FILTERS,
     q: searchParams.get('q') ?? '',
-    dealType: (searchParams.get('dealType') ?? '') as DealType,
+    dealType: (searchParams.get('dealType') ?? '') as MarketFilters['dealType'],
     city: searchParams.get('city') ?? '',
     maxPrice: searchParams.get('maxPrice') ?? '',
     minRooms: searchParams.get('minRooms') ?? '',
@@ -137,13 +130,6 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [savedSearches, setSavedSearches] = useState<string[]>([]);
   const [searchSaved, setSearchSaved] = useState(false);
-  // Hierarchical (drill-down) picker is a behind-toggle helper that
-  // streams its picks back into the regular `filters` state. Keeping
-  // it separate means existing filter logic (search, save, share)
-  // continues to work unchanged — the cascading UI is just a different
-  // way to populate the same fields.
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [advanced, setAdvanced] = useState<HierarchicalSearchValue>(EMPTY_HIERARCHICAL_SEARCH);
 
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
@@ -159,20 +145,31 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
     setFavoriteIds(readStoredList('realtorai_market_favorites'));
     setCompareIds(readStoredList('realtorai_market_compare'));
     setSavedSearches(readStoredList('realtorai_market_searches'));
-    void load();
-    // Initial marketplace load only. Further loads are explicit through the form.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function load(e?: FormEvent<HTMLFormElement>) {
-    e?.preventDefault();
+  // Live-fetch: any filter change runs a search. We compare against
+  // the last fetched fingerprint to avoid duplicate requests when the
+  // search panel re-sends the same filters (e.g. when a child rerenders).
+  const lastFingerprintRef = useRef<string>('');
+  useEffect(() => {
+    const fp = JSON.stringify(filters) + '|' + isPage;
+    if (fp === lastFingerprintRef.current) return;
+    lastFingerprintRef.current = fp;
+    void load(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, isPage]);
+
+  async function load(active: MarketFilters) {
     setLoading(true);
     setError(null);
     setSearchSaved(false);
     try {
       const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.set(key, value);
+      // Skip empty strings + the settlementId (not a server-side
+      // filter — it's only used by the search panel for scoped UI).
+      (Object.entries(active) as Array<[keyof MarketFilters, MarketFilters[keyof MarketFilters]]>).forEach(([key, value]) => {
+        if (key === 'settlementId') return;
+        if (value) params.set(key, String(value));
       });
       params.set('take', isPage ? '30' : '8');
       const res = await api<PublicSearchResponse>(`/properties/public/search?${params.toString()}`, {
@@ -234,30 +231,9 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
     storeList('realtorai_market_compare', next);
   }
 
-  /**
-   * Pulls the deepest meaningful selection from the cascading picker
-   * into the flat `filters` state, then closes the panel. We deliberately
-   * don't auto-submit — the user might still want to add a price / rooms
-   * filter before clicking "סנן נכסים".
-   *
-   * The cascade rule: street wins over neighborhood for the `q` slot
-   * because it's more specific. The neighborhood name also goes into
-   * the area field so the existing area filter (contains-match against
-   * the `area` column) matches old free-text listings too.
-   */
-  function applyAdvanced() {
-    if (!advanced.settlementId) return;
-    setFilters((prev) => ({
-      ...prev,
-      city: advanced.settlementName ?? prev.city,
-      q: advanced.streetName ?? advanced.neighborhoodName ?? prev.q,
-    }));
-    setAdvancedOpen(false);
-  }
-
-  const advancedHasSelection = Boolean(
-    advanced.districtId || advanced.settlementId || advanced.neighborhoodId || advanced.streetId,
-  );
+  // (Advanced search now lives inside <MarketplaceSearchPanel> — it
+  // owns the hierarchical picker + applies its selection back into
+  // the shared filter state via onChange.)
 
   const content = (
     <section
@@ -301,153 +277,35 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
 
         <FeatureRail />
 
-        <form onSubmit={load} className="mt-5 grid gap-3 rounded-lg border bg-card p-4 shadow-soft md:grid-cols-6">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="market-q">חיפוש חופשי</Label>
-            {/* Smart autocomplete — settlements globally, and once a
-                city is picked it narrows to street suggestions inside
-                that city. Picking a street fills both `q` and `city`
-                so the next "סנן נכסים" run uses both filters. */}
-            <MarketSearchAutocomplete
-              value={filters.q}
-              city={filters.city}
-              onChange={(v) => setFilters((prev) => ({ ...prev, q: v }))}
-              onSelectCity={(cityName) =>
-                setFilters((prev) => ({ ...prev, city: cityName, q: '' }))
-              }
-              onSelectStreet={(streetName, cityName) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  q: streetName,
-                  // Switch the city filter only if the picked street's
-                  // city differs — avoids clobbering a user-typed
-                  // variant of the same name.
-                  city: cityName || prev.city,
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="market-deal-type">סוג עסקה</Label>
-            <select
-              id="market-deal-type"
-              value={filters.dealType}
-              onChange={(e) => setFilters((prev) => ({ ...prev, dealType: e.target.value as DealType }))}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="">הכל</option>
-              <option value="sale">מכירה</option>
-              <option value="rent">השכרה</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="market-city">עיר</Label>
-            {/* CityAutocomplete is backed by /geo/settlements — same data
-                source the property forms will eventually use. Picking a
-                city from the dropdown sets `filters.city` to the Hebrew
-                name so the existing search query (which already filters
-                on `city contains q`) works unchanged. */}
-            <CityAutocomplete
-              value={filters.city}
-              onChange={(v) => setFilters((prev) => ({ ...prev, city: v }))}
-              placeholder="לדוגמה הרצליה"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="market-max-price">מחיר עד</Label>
-            <Input
-              id="market-max-price"
-              type="number"
-              inputMode="numeric"
-              value={filters.maxPrice}
-              onChange={(e) => setFilters((prev) => ({ ...prev, maxPrice: e.target.value }))}
-              placeholder="4,000,000"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="market-min-rooms">חדרים מ-</Label>
-            <Input
-              id="market-min-rooms"
-              type="number"
-              step="0.5"
-              inputMode="decimal"
-              value={filters.minRooms}
-              onChange={(e) => setFilters((prev) => ({ ...prev, minRooms: e.target.value }))}
-              placeholder="3"
-            />
-          </div>
-          <div className="flex flex-col gap-2 md:col-span-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={loading}>
-                <SlidersHorizontal className="h-4 w-4" />
-                {loading ? 'מחפש...' : 'סנן נכסים'}
-              </Button>
-              <Button type="button" variant="outline" onClick={saveCurrentSearch}>
-                <Bell className="h-4 w-4" />
-                {searchSaved ? 'החיפוש נשמר' : 'שמור חיפוש'}
-              </Button>
-            </div>
-            <ViewSwitch value={view} onChange={setView} />
-          </div>
-        </form>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            aria-expanded={advancedOpen}
-            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            חיפוש מדורג לפי מחוז / עיר / שכונה
-            {advancedOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-          {savedSearches.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {savedSearches.map((search) => (
-                <span key={search} className="rounded-full border bg-background px-3 py-1">
-                  {search}
-                </span>
-              ))}
-            </div>
-          )}
+        {/* Unified search panel — live-fetches results on every change.
+            Owns the smart input + chips + hierarchical drill-down all
+            in one place; the old multi-field form is gone. */}
+        <div className="mt-5">
+          <MarketplaceSearchPanel initial={filters} onChange={setFilters} />
         </div>
 
-        {advancedOpen && (
-          <div className="mt-3 rounded-lg border bg-card p-4 shadow-soft">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">
-                <Layers className="ml-1 inline h-4 w-4 text-primary" />
-                בחר מחוז ואז התקדם עד הרחוב
-              </p>
-              {advancedHasSelection && (
-                <button
-                  type="button"
-                  onClick={() => setAdvanced(EMPTY_HIERARCHICAL_SEARCH)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  נקה
-                </button>
-              )}
-            </div>
-            <HierarchicalSearch value={advanced} onChange={setAdvanced} size="compact" />
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                הבחירה תיכנס לתוך פילטרי החיפוש למעלה — לחץ "סנן נכסים" כדי להריץ.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="gradient"
-                disabled={!advanced.settlementId}
-                onClick={applyAdvanced}
-              >
-                החל בחירה
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </div>
+        {/* Sub-bar: result count, save-search, view switch */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>
+              {loading ? 'טוען...' : `${total} נכסים בתוצאות`}
+            </span>
+            <Button type="button" variant="ghost" size="sm" onClick={saveCurrentSearch}>
+              <Bell className="h-4 w-4" />
+              {searchSaved ? 'החיפוש נשמר' : 'שמור חיפוש'}
+            </Button>
+            {savedSearches.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                {savedSearches.map((search) => (
+                  <span key={search} className="rounded-full border bg-background px-2 py-0.5">
+                    {search}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          <ViewSwitch value={view} onChange={setView} />
+        </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
@@ -1202,7 +1060,7 @@ function isFresh(updatedAt: string) {
   return Number.isFinite(updated) && Date.now() - updated < 1000 * 60 * 60 * 24 * 14;
 }
 
-function formatSearchLabel(filters: { q: string; dealType: DealType; city: string; maxPrice: string; minRooms: string }) {
+function formatSearchLabel(filters: MarketFilters) {
   const parts = [
     filters.dealType ? dealLabels[filters.dealType] : 'כל העסקאות',
     filters.city || filters.q || 'כל הארץ',
