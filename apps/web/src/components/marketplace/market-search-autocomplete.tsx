@@ -4,22 +4,26 @@
  * Marketplace "חיפוש חופשי" autocomplete — smart variant that suggests
  * settlements + streets as the user types, blended in one dropdown.
  *
- * Behaviour rules:
- *   - With no `city` filter set → suggestions are global (any city,
- *     any street). Picking a settlement fills the city filter; picking
- *     a street fills both city + q.
- *   - With a `city` filter set → suggestions are narrowed to streets
- *     in that city (client-side filter on the /geo/search result).
- *     This addresses the common flow "I picked לוד, now show me streets
- *     in לוד as I type שלמה".
+ * Three input modes, all resolved transparently:
  *
- * Replaces the previous plain `<input>` so the operator doesn't have
- * to remember the exact spelling of a Hebrew street name. Falls back
- * to the typed text if no suggestion is picked — the marketplace's
- * free-text `q` filter still works for "תיאור" matches.
+ *   1. Plain query — "שלמה". Globally suggests cities + streets matching.
+ *   2. Compound "city, query" — "לוד, חיסכון". Detected by comma. We
+ *      look up "לוד" as a city and use "חיסכון" as a street search
+ *      scoped to that city. Picking a result fills city + q properly.
+ *   3. Scoped — when the sibling `city` filter is already set, the
+ *      input doesn't need the city prefix. We narrow to streets in
+ *      that city automatically.
+ *
+ * Why support mode 2: that's how Israelis naturally write addresses
+ * ("תל אביב, דיזנגוף 1") and how a buyer would type their search into
+ * a single search box. Without it, the user has to switch fields to
+ * pick the city then come back — clunky.
+ *
+ * Falls back to plain free-text on submit if nothing is picked — the
+ * marketplace's `q` filter still matches the `notes` column too.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Home, Loader2, MapPin, Search } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || '/api';
@@ -33,13 +37,29 @@ interface SearchResult {
   }>;
 }
 
+/**
+ * Splits "city, street" or "city · street" into the two parts.
+ * Returns `null` for the city if no separator is found.
+ */
+function splitCompound(input: string): { cityPart: string | null; queryPart: string } {
+  const trimmed = input.trim();
+  // Accept comma, Hebrew geresh, middle-dot, slash as separators —
+  // covers the common formats users actually type.
+  const m = trimmed.match(/^([^,·/]+)\s*[,·/]\s*(.+)$/);
+  if (!m) return { cityPart: null, queryPart: trimmed };
+  return { cityPart: m[1].trim(), queryPart: m[2].trim() };
+}
+
+const norm = (s: string) =>
+  s.replace(/\s+/g, '').replace(/[-–—־'"׳״]/g, '').toLowerCase();
+
 export function MarketSearchAutocomplete({
   value,
   city,
   onChange,
   onSelectCity,
   onSelectStreet,
-  placeholder = 'עיר, שכונה, רחוב או תיאור',
+  placeholder = 'עיר, או "עיר, רחוב" (לדוגמה: לוד, הרצל)',
   className,
 }: {
   value: string;
@@ -59,21 +79,29 @@ export function MarketSearchAutocomplete({
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Two parallel result buckets: one for the "city part" of a compound
+  // query, one for the "query part". We blend them when rendering so
+  // the dropdown still feels like a single list.
   const [results, setResults] = useState<SearchResult>({ settlements: [], streets: [] });
+  /** The resolved settlement implied by the "city, street" prefix —
+   *  drives the scope for the street query when the user typed a
+   *  compound. Independent of the sibling `city` filter. */
+  const [impliedCity, setImpliedCity] = useState<string | null>(null);
   const [activeIdx, setActiveIdx] = useState(-1);
 
-  // ── Scoped suggestions ────────────────────────────────────────
-  // When the user already picked a city, drop settlements from the
-  // results entirely (they don't want to switch city while drilling
-  // into streets) and filter streets to that city. The normalise step
-  // strips diacritics/spaces/dashes so "תל אביב יפו" matches
-  // "תל אביב - יפו" (CBS uses both).
+  const parsed = useMemo(() => splitCompound(value), [value]);
+  // The effective city scope is the explicit filter > the typed
+  // prefix > nothing. Whichever wins, we restrict street suggestions
+  // to that city.
+  const scopeCity = city || impliedCity || '';
+
+  // ── Filtering ──────────────────────────────────────────────────
   const filtered: SearchResult = (() => {
-    if (!city) return results;
-    const norm = (s: string) =>
-      s.replace(/\s+/g, '').replace(/[-–—־'"׳״]/g, '').toLowerCase();
-    const cityKey = norm(city);
+    if (!scopeCity) return results;
+    const cityKey = norm(scopeCity);
     return {
+      // Inside a scope we suppress settlement suggestions — the user
+      // already decided on a city, switching mid-flow would lose work.
       settlements: [],
       streets: results.streets.filter((st) => norm(st.settlement.nameHe).includes(cityKey)),
     };
@@ -84,22 +112,76 @@ export function MarketSearchAutocomplete({
     ...filtered.streets.map((s) => ({ kind: 'street' as const, item: s })),
   ];
 
-  const fetchResults = useCallback(async (q: string) => {
-    if (q.trim().length < 2) {
-      setResults({ settlements: [], streets: [] });
+  // ── Fetcher ────────────────────────────────────────────────────
+  const fetchResults = useCallback(async (raw: string) => {
+    const { cityPart, queryPart } = splitCompound(raw);
+
+    // No compound: regular search. The query has to be ≥2 chars to
+    // hit the API (`/geo/search` returns empty below that anyway).
+    if (!cityPart) {
+      setImpliedCity(null);
+      if (queryPart.length < 2) {
+        setResults({ settlements: [], streets: [] });
+        return;
+      }
+      setLoading(true);
+      try {
+        const take = city ? 30 : 8;
+        const res = await fetch(`${API}/geo/search?q=${encodeURIComponent(queryPart)}&take=${take}`);
+        if (!res.ok) return;
+        setResults(await res.json());
+      } finally {
+        setLoading(false);
+      }
       return;
     }
+
+    // Compound query: first resolve the city, then search streets in
+    // that city. Two API calls, fired in parallel because there's no
+    // dependency between them once we know the city candidate name.
     setLoading(true);
     try {
-      // Bigger `take` when scoped — the city filter throws away most
-      // results, so we need more raw matches to end up with anything
-      // useful. With no city we stay tighter to keep the dropdown short.
-      const take = city ? 30 : 8;
-      const res = await fetch(`${API}/geo/search?q=${encodeURIComponent(q)}&take=${take}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as SearchResult;
-      setResults(data);
-      setActiveIdx(data.settlements.length + data.streets.length > 0 ? 0 : -1);
+      const citiesRes = await fetch(`${API}/geo/settlements?q=${encodeURIComponent(cityPart)}&take=5`);
+      const cities: Array<{ id: string; nameHe: string }> = citiesRes.ok ? await citiesRes.json() : [];
+      // Pick the best city match: exact normalized match wins, else
+      // first hit. If nothing matches, fall back to a global street
+      // search — better than empty.
+      const exact = cities.find((c) => norm(c.nameHe) === norm(cityPart));
+      const best = exact ?? cities[0] ?? null;
+
+      if (!best) {
+        setImpliedCity(null);
+        // No city matched at all — degrade to a global search for the
+        // whole compound text so the user gets *something*.
+        const res = await fetch(`${API}/geo/search?q=${encodeURIComponent(raw)}&take=8`);
+        setResults(res.ok ? await res.json() : { settlements: [], streets: [] });
+        return;
+      }
+
+      setImpliedCity(best.nameHe);
+
+      if (queryPart.length === 0) {
+        // User typed "לוד," and stopped — show the city as the only
+        // pickable result so they can lock it in with Enter.
+        setResults({
+          settlements: [best],
+          streets: [],
+        });
+        return;
+      }
+
+      const streetsRes = await fetch(
+        `${API}/geo/streets?settlementId=${best.id}&q=${encodeURIComponent(queryPart)}&take=30`,
+      );
+      const streets: Array<{ id: string; nameHe: string }> = streetsRes.ok ? await streetsRes.json() : [];
+      setResults({
+        settlements: [],
+        streets: streets.map((st) => ({
+          id: st.id,
+          nameHe: st.nameHe,
+          settlement: { id: best.id, nameHe: best.nameHe },
+        })),
+      });
     } finally {
       setLoading(false);
     }
@@ -115,8 +197,8 @@ export function MarketSearchAutocomplete({
     };
   }, [value, open, fetchResults]);
 
-  // City change → re-fetch with the new scope so the dropdown reflects
-  // the new constraint immediately.
+  // External city change → re-fetch with new scope so the dropdown
+  // reflects the new constraint immediately.
   useEffect(() => {
     if (open && value.trim().length >= 2) fetchResults(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,14 +212,21 @@ export function MarketSearchAutocomplete({
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  // ── Pickers ─────────────────────────────────────────────────────
   function pickSettlement(s: SearchResult['settlements'][number]) {
     onSelectCity(s.nameHe);
-    onChange(''); // clear free-text once city is picked
+    onChange(''); // clear free-text once city is locked into its own field
+    setImpliedCity(null);
     setOpen(false);
     inputRef.current?.blur();
   }
   function pickStreet(s: SearchResult['streets'][number]) {
     onSelectStreet(s.nameHe, s.settlement.nameHe);
+    // Replace the typed text with just the street name so the field
+    // reads like the picked result ("חיסכון") and city goes into
+    // its own filter. No more "לוד, חיסכון" residue.
+    onChange(s.nameHe);
+    setImpliedCity(null);
     setOpen(false);
     inputRef.current?.blur();
   }
@@ -173,6 +262,11 @@ export function MarketSearchAutocomplete({
     }
   }
 
+  // Show a hint chip when we've resolved a city from a compound query
+  // but the user hasn't picked yet — gives confidence that the typed
+  // prefix is understood as a scope, not just gibberish.
+  const showImpliedHint = impliedCity && impliedCity !== city && parsed.cityPart;
+
   return (
     <div ref={wrapperRef} className={`relative ${className ?? ''}`}>
       <div className="relative">
@@ -200,6 +294,13 @@ export function MarketSearchAutocomplete({
         )}
       </div>
 
+      {showImpliedHint && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          מחפש ב<span className="font-semibold text-primary">{impliedCity}</span>.
+          בחר מהרשימה כדי לאכלס את שדה העיר.
+        </p>
+      )}
+
       {open && (loading || flat.length > 0 || value.trim().length >= 2) && (
         <div
           className="absolute top-full right-0 z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover shadow-lift"
@@ -210,7 +311,7 @@ export function MarketSearchAutocomplete({
           )}
           {!loading && flat.length === 0 && value.trim().length >= 2 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              {city ? `אין רחוב כזה ב${city}` : 'אין תוצאות'}
+              {scopeCity ? `אין רחוב כזה ב${scopeCity}` : 'אין תוצאות'}
             </div>
           )}
 
