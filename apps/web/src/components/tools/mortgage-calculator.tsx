@@ -117,10 +117,35 @@ function createDefaultMixes(totalLoan: number): MixState[] {
   return Array.from({ length: MAX_MIXES }, (_, index) => createMix(`תמהיל ${index + 1}`, totalLoan));
 }
 
-export function MortgageCalculator() {
-  const [scenario, setScenario] = useState<Scenario>('single');
-  const [price, setPrice] = useState(2_500_000);
-  const [downPayment, setDownPayment] = useState(625_000);
+/**
+ * Optional props let callers embed the calculator inside a context that
+ * already knows the property — e.g. the public property-detail page,
+ * which passes the listing's price so the user lands on a calc that's
+ * already focused on the apartment they're viewing.
+ *
+ * Defaults intentionally mirror the standalone page's behaviour so
+ * `/tools/mortgage-calculator` still loads the same demo numbers.
+ */
+export interface MortgageCalculatorProps {
+  /** Property price (₪). Down payment auto-derives to 25% if not given. */
+  initialPrice?: number;
+  /** Override the auto-derived 25% down payment. */
+  initialDownPayment?: number;
+  /** Buyer scenario — defaults to "single" (75% LTV). */
+  initialScenario?: Scenario;
+}
+
+export function MortgageCalculator({
+  initialPrice,
+  initialDownPayment,
+  initialScenario,
+}: MortgageCalculatorProps = {}) {
+  const [scenario, setScenario] = useState<Scenario>(initialScenario ?? 'single');
+  const [price, setPrice] = useState(initialPrice && initialPrice > 0 ? initialPrice : 2_500_000);
+  // Derive a sensible default down: caller's override → 25% of price → 625K.
+  const [downPayment, setDownPayment] = useState(
+    initialDownPayment ?? (initialPrice && initialPrice > 0 ? Math.round(initialPrice * 0.25) : 625_000),
+  );
   const totalLoan = Math.max(0, price - downPayment);
   const ltv = price > 0 ? totalLoan / price : 0;
   const ltvCap = LTV_CAP[scenario];

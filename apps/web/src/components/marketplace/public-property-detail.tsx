@@ -14,10 +14,27 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+// Mortgage calculator is large (~11 kB + the engine). Dynamic-import so
+// it only loads when the user expands the "מחשבון משכנתא" section. Most
+// visitors browse photos + amenities and never open it.
+const FullMortgageCalculator = dynamic(
+  () => import('@/components/tools/mortgage-calculator').then((m) => m.MortgageCalculator),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid place-items-center py-10 text-sm text-muted-foreground">
+        טוען מחשבון...
+      </div>
+    ),
+  },
+);
 import {
   Home, MapPin, Layers, Calendar, Phone, MessageCircle, Heart, Scale, Share2,
   Building2, ShieldCheck, Sparkles, Calculator, Loader2, CheckCircle2, AlertTriangle,
   SquareParking, Sofa, Package, Snowflake, Grid3x3, Diamond, Accessibility,
+  ChevronDown, ChevronUp,
   type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -552,38 +569,47 @@ function LeadForm({ propertyId, dealType }: { propertyId: string; dealType: 'sal
   );
 }
 
+/**
+ * Inline full mortgage calculator — the same `MortgageCalculator` that
+ * lives at `/tools/mortgage-calculator`, pre-filled with this property's
+ * price. Mounted inside a foldable so the page doesn't open with a 4-mix
+ * monster expanded for visitors who only want to see the photos.
+ *
+ * Only renders for sale listings — a mortgage calculator on a rental
+ * makes no sense and would confuse browsers.
+ */
 function MortgagePreview({ price, dealType }: { price: number | null; dealType: 'sale' | 'rent' }) {
+  const [open, setOpen] = useState(false);
   if (dealType !== 'sale' || !price) return null;
-  // Quick estimate: 75% LTV, 25 years, 4.5% blended rate → standard PMT.
-  const loan = Math.round(price * 0.75);
-  const r = 0.045 / 12;
-  const n = 25 * 12;
-  const monthly = loan > 0 ? (loan * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : 0;
 
   return (
-    <section className="rounded-xl border bg-gradient-to-br from-primary/5 via-transparent to-fuchsia-500/5 p-5">
-      <div className="flex items-start gap-3">
+    <section className="rounded-xl border bg-gradient-to-br from-primary/5 via-transparent to-fuchsia-500/5 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 p-5 text-right hover:bg-primary/5 transition-colors"
+        aria-expanded={open}
+      >
         <div className="h-10 w-10 rounded-lg bg-primary/15 grid place-items-center shrink-0">
           <Calculator className="h-5 w-5 text-primary" />
         </div>
-        <div className="flex-1 space-y-2">
-          <h3 className="font-bold">תשלום משכנתא משוער</h3>
-          <p className="text-sm text-muted-foreground">
-            בהנחה של 25% הון עצמי, 25 שנה ב-4.5%:
+        <div className="flex-1 space-y-1">
+          <h3 className="font-bold">מחשבון משכנתא לנכס זה</h3>
+          <p className="text-xs text-muted-foreground">
+            תמהיל מלא: פריים · קל"צ · ק"צ · מ"צ · גרייס · סילוק עתידי — עם המחיר של הנכס מולא מראש
           </p>
-          <p className="text-2xl font-bold text-gradient">
-            ~{new Intl.NumberFormat('he-IL', {
-              style: 'currency', currency: 'ILS', maximumFractionDigits: 0,
-            }).format(Math.round(monthly))}
-            <span className="text-sm font-normal text-muted-foreground"> / חודש</span>
-          </p>
-          <Button asChild variant="outline" size="sm" className="gap-1.5">
-            <Link href={`/tools/mortgage-calculator?price=${price}`}>
-              <Calculator className="h-3.5 w-3.5" /> חשב תמהיל מלא
-            </Link>
-          </Button>
         </div>
-      </div>
+        {open
+          ? <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+      </button>
+      {open && (
+        // Inset background so the embedded calculator's own cards have
+        // somewhere to "sit" without doubling up borders.
+        <div className="border-t bg-background p-4 md:p-5">
+          <FullMortgageCalculator initialPrice={price} />
+        </div>
+      )}
     </section>
   );
 }
