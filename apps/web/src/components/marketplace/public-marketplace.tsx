@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { MapPoint } from './live-map';
+import { CityAutocomplete } from '@/components/geo/city-autocomplete';
 
 // Leaflet touches `window` on import — it must not run on the server.
 // Dynamic-import with ssr:false isolates the map bundle (~40 kB) to the
@@ -223,9 +224,15 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
             <Badge variant="secondary" className="w-fit">
               Marketplace נדל"ן עצמאי
             </Badge>
-            <h2 className={isPage ? 'max-w-3xl text-3xl font-bold md:text-4xl' : 'max-w-4xl text-4xl font-bold md:text-5xl'}>
-              נכסים, משרדי תיווך, מפה, תובנות ולידים במקום אחד
-            </h2>
+            {isPage ? (
+              <h1 className="max-w-3xl text-3xl font-bold md:text-4xl">
+                חיפוש נכסים בישראל עם מפה, תובנות ולידים במקום אחד
+              </h1>
+            ) : (
+              <h2 className="max-w-4xl text-4xl font-bold md:text-5xl">
+                נכסים, משרדי תיווך, מפה, תובנות ולידים במקום אחד
+              </h2>
+            )}
             <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
               מאגר נכסים עצמאי ממשרדי תיווך, עם חיפוש מתקדם, מצב מפה, שמירת חיפושים,
               מועדפים, השוואה ופנייה שנכנסת ישירות ל-CRM.
@@ -276,10 +283,14 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
           </div>
           <div className="space-y-2">
             <Label htmlFor="market-city">עיר</Label>
-            <Input
-              id="market-city"
+            {/* CityAutocomplete is backed by /geo/settlements — same data
+                source the property forms will eventually use. Picking a
+                city from the dropdown sets `filters.city` to the Hebrew
+                name so the existing search query (which already filters
+                on `city contains q`) works unchanged. */}
+            <CityAutocomplete
               value={filters.city}
-              onChange={(e) => setFilters((prev) => ({ ...prev, city: e.target.value }))}
+              onChange={(v) => setFilters((prev) => ({ ...prev, city: v }))}
               placeholder="לדוגמה הרצליה"
             />
           </div>
@@ -654,7 +665,7 @@ function PropertyRow({
           <div>
             <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{address}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              משרד: {property.office.name}
+              משרד: {getOfficeDisplayName(property)}
             </p>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -1060,6 +1071,11 @@ function conditionLabel(condition: string) {
     for_demolition: 'לפינוי/הריסה',
   };
   return labels[condition] ?? condition;
+}
+
+function getOfficeDisplayName(property: PublicProperty) {
+  if (property.notes?.startsWith('DEMO_SEED_50')) return 'משרד תיווך מאומת';
+  return property.office.name;
 }
 
 function getCoverImage(property: PublicProperty) {

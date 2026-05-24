@@ -27,6 +27,15 @@ const DEFAULT_RECRUITER_PROMPT_TEMPLATE = `You are a respectful property-recruit
 Talk to property owners about possible sale or rental. Never promise a price or buyer.
 Hand off to a human when the owner is genuinely interested.`;
 
+const SAMPLE_PROPERTY_IMAGES = [
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1560185127-6ed189bf02f4?auto=format&fit=crop&w=1200&q=80',
+];
+
 @Injectable()
 export class OnboardingService {
   constructor(
@@ -288,6 +297,8 @@ export class OnboardingService {
         price: 2_850_000,
         status: PropertyStatus.active,
         notes: 'משופצת, מעלית, חניה.',
+        coverImageUrl: SAMPLE_PROPERTY_IMAGES[0],
+        galleryUrls: [SAMPLE_PROPERTY_IMAGES[1], SAMPLE_PROPERTY_IMAGES[2]],
         hasParking: true, hasElevator: true, hasSafeRoom: true,
         hasBalcony: true, hasAirCon: true, hasStorage: false,
         isFurnished: false, isExclusive: true, hasBars: true,
@@ -303,6 +314,8 @@ export class OnboardingService {
         price: 2_100_000,
         status: PropertyStatus.active,
         notes: 'נוף לעיר, חניה כפולה.',
+        coverImageUrl: SAMPLE_PROPERTY_IMAGES[3],
+        galleryUrls: [SAMPLE_PROPERTY_IMAGES[4], SAMPLE_PROPERTY_IMAGES[5]],
         hasParking: true, hasElevator: true, hasSafeRoom: true,
         hasBalcony: true, hasAirCon: true, hasStorage: true,
         isFurnished: false, isExclusive: false, hasBars: false,
@@ -318,6 +331,8 @@ export class OnboardingService {
         price: 9_500,
         status: PropertyStatus.active,
         notes: 'מרוהטת, כניסה מיידית.',
+        coverImageUrl: SAMPLE_PROPERTY_IMAGES[5],
+        galleryUrls: [SAMPLE_PROPERTY_IMAGES[0], SAMPLE_PROPERTY_IMAGES[2]],
         hasParking: true, hasElevator: false, hasSafeRoom: false,
         hasBalcony: true, hasAirCon: true, hasStorage: false,
         isFurnished: true, isExclusive: false, hasBars: true,

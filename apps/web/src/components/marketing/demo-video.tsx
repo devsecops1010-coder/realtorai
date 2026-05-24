@@ -10,6 +10,7 @@
 // worse than showing "video coming soon" with a clear path to action.
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Play, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -58,9 +59,9 @@ export function DemoVideo() {
                 על הנתונים שלך.
               </p>
               <Button asChild>
-                <a href="#contact" className="gap-2 inline-flex">
+                <Link href="/#contact" className="gap-2 inline-flex">
                   קבע שיחת דמו <ArrowLeft className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
           </div>

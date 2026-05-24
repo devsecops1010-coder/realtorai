@@ -25,7 +25,7 @@ export function CtaBand() {
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" variant="secondary" className="text-base">
-              <Link href="#contact">
+              <Link href="/#contact">
                 קבע שיחת התאמה
                 <ArrowLeft className="mr-2 h-4 w-4" />
               </Link>

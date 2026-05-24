@@ -14,7 +14,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { PropertyMortgageCalc } from './property-mortgage-calc';
+import { MortgageCalculator } from '@/components/tools/mortgage-calculator';
 import {
   Home, MapPin, Layers, Calendar, Phone, MessageCircle, Heart, Scale, Share2,
   Building2, ShieldCheck, Sparkles, Calculator, Loader2, CheckCircle2, AlertTriangle,
@@ -150,7 +150,6 @@ export function PublicPropertyDetail({ property }: { property: PublicProperty })
             </section>
           )}
 
-          <MortgagePreview price={property.price} dealType={property.dealType} />
         </div>
 
         {/* Side column ─────────────────────────────────────────────── */}
@@ -181,6 +180,8 @@ export function PublicPropertyDetail({ property }: { property: PublicProperty })
           <LeadForm propertyId={property.id} dealType={property.dealType} />
         </aside>
       </div>
+
+      <MortgagePreview price={property.price} dealType={property.dealType} />
 
       <TrustStrip />
     </article>
@@ -557,15 +558,16 @@ function LeadForm({ propertyId, dealType }: { propertyId: string; dealType: 'sal
 /**
  * Inline full mortgage calculator — the same `MortgageCalculator` that
  * lives at `/tools/mortgage-calculator`, pre-filled with this property's
- * price. Mounted inside a foldable so the page doesn't open with a 4-mix
- * monster expanded for visitors who only want to see the photos.
+ * price. Mounted below the two-column detail grid so the full 4-mix
+ * workbench has enough width and does not squeeze the listing content.
  *
  * Only renders for sale listings — a mortgage calculator on a rental
  * makes no sense and would confuse browsers.
  */
 function MortgagePreview({ price, dealType }: { price: number | null; dealType: 'sale' | 'rent' }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (dealType !== 'sale' || !price) return null;
+  const defaultDownPayment = Math.round(price * 0.25);
 
   return (
     <section className="rounded-xl border bg-gradient-to-br from-primary/5 via-transparent to-fuchsia-500/5 overflow-hidden">
@@ -579,9 +581,9 @@ function MortgagePreview({ price, dealType }: { price: number | null; dealType: 
           <Calculator className="h-5 w-5 text-primary" />
         </div>
         <div className="flex-1 space-y-1">
-          <h3 className="font-bold">מחשבון משכנתא לנכס זה</h3>
+          <h3 className="font-bold">מחשבון משכנתא מלא לפי מחיר הנכס</h3>
           <p className="text-xs text-muted-foreground">
-            תמהיל מלא: פריים · קל"צ · ק"צ · מ"צ · גרייס · סילוק עתידי — עם המחיר של הנכס מולא מראש
+            מחיר הדירה מולא מראש, הון עצמי מתחיל ב-25%, וכל שינוי למעלה מסנכרן את המסלולים והתמהילים.
           </p>
         </div>
         {open
@@ -589,10 +591,12 @@ function MortgagePreview({ price, dealType }: { price: number | null; dealType: 
           : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
       </button>
       {open && (
-        // Inset on bg so the calc's own cards don't double-stroke.
-        // Compact calc fits the narrow main column without overflow.
-        <div className="border-t bg-background p-4 md:p-5">
-          <PropertyMortgageCalc price={price} />
+        <div className="border-t bg-background p-3 md:p-5">
+          <MortgageCalculator
+            initialPrice={price}
+            initialDownPayment={defaultDownPayment}
+            initialScenario="single"
+          />
         </div>
       )}
     </section>

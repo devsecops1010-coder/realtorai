@@ -39,11 +39,11 @@ export function MarketingNav() {
 
         <div className="hidden md:flex items-center gap-1">
           <NavLink href="/#marketplace">חיפוש נכסים</NavLink>
-          <NavLink href="#features">יכולות</NavLink>
-          <NavLink href="#how">איך זה עובד</NavLink>
+          <NavLink href="/#features">יכולות</NavLink>
+          <NavLink href="/#how">איך זה עובד</NavLink>
           <NavLink href="/tools">כלים</NavLink>
           <NavLink href="/pricing">מחירים</NavLink>
-          <NavLink href="#contact">צור קשר</NavLink>
+          <NavLink href="/#contact">צור קשר</NavLink>
         </div>
 
         <div className="flex items-center gap-2">

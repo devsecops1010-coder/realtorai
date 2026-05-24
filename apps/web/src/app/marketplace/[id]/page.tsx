@@ -90,7 +90,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
   return (
     <>
       <MarketingNav />
-      <main className="container mx-auto max-w-6xl px-4 py-8">
+      <main className="container mx-auto max-w-7xl px-4 py-8">
         <nav className="mb-4 text-sm text-muted-foreground">
           <Link href="/marketplace" className="hover:text-foreground hover:underline">
             ← חזרה לחיפוש נכסים

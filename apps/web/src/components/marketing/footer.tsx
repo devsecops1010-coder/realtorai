@@ -16,16 +16,16 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-3">מוצר</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#features" className="text-muted-foreground hover:text-foreground">יכולות</Link></li>
-              <li><Link href="#how" className="text-muted-foreground hover:text-foreground">איך זה עובד</Link></li>
+              <li><Link href="/#features" className="text-muted-foreground hover:text-foreground">יכולות</Link></li>
+              <li><Link href="/#how" className="text-muted-foreground hover:text-foreground">איך זה עובד</Link></li>
               <li><Link href="/pricing" className="text-muted-foreground hover:text-foreground">מחירים</Link></li>
-              <li><Link href="#faq" className="text-muted-foreground hover:text-foreground">שאלות נפוצות</Link></li>
+              <li><Link href="/#faq" className="text-muted-foreground hover:text-foreground">שאלות נפוצות</Link></li>
             </ul>
           </div>
           <div>
             <h3 className="font-semibold mb-3">חברה</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#contact" className="text-muted-foreground hover:text-foreground">צור קשר</Link></li>
+              <li><Link href="/#contact" className="text-muted-foreground hover:text-foreground">צור קשר</Link></li>
               <li><Link href="/register" className="text-muted-foreground hover:text-foreground">התחל ניסיון</Link></li>
               <li><Link href="/login" className="text-muted-foreground hover:text-foreground">התחבר</Link></li>
             </ul>

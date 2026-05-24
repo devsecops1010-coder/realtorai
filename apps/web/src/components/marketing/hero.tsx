@@ -2,21 +2,16 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   BarChart3,
-  Bell,
   Bot,
-  Building2,
   Calculator,
   CheckCircle2,
-  Heart,
-  Home,
-  MapPin,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { HeroLivePropertyMap } from './hero-live-property-map';
 
 const SEARCH_TABS = ['קנייה', 'השכרה', 'דירות חדשות', 'מסחרי'];
 const CITY_CHIPS = ['הרצליה', 'תל אביב', 'ירושלים', 'חיפה', 'רמת גן'];
@@ -73,7 +68,7 @@ export function Hero() {
             </div>
           </div>
 
-          <HeroMapPanel />
+          <HeroLivePropertyMap />
         </div>
 
         <div className="mt-8 grid gap-3 md:grid-cols-4">
@@ -93,7 +88,7 @@ function HeroSearch() {
         {SEARCH_TABS.map((tab, index) => (
           <Link
             key={tab}
-            href="#marketplace"
+            href="/#marketplace"
             className={
               index === 0
                 ? 'rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground'
@@ -107,20 +102,20 @@ function HeroSearch() {
 
       <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
         <Link
-          href="#marketplace"
+          href="/#marketplace"
           className="flex min-h-12 items-center gap-3 rounded-md border bg-background px-4 text-right text-muted-foreground hover:border-primary/50 hover:text-foreground"
         >
           <Search className="h-5 w-5 text-primary" />
           חפש עיר, שכונה, רחוב או נכס
         </Link>
         <Button asChild variant="outline" className="h-12">
-          <Link href="#marketplace">
+          <Link href="/#marketplace">
             <SlidersHorizontal className="h-4 w-4" />
             פילטרים
           </Link>
         </Button>
         <Button asChild variant="gradient" className="btn-shine h-12">
-          <Link href="#marketplace">
+          <Link href="/#marketplace">
             חפש עכשיו
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -129,75 +124,11 @@ function HeroSearch() {
 
       <div className="mt-4 flex flex-wrap gap-2 text-sm">
         {CITY_CHIPS.map((city) => (
-          <Link key={city} href="#marketplace" className="rounded-full border bg-background px-3 py-1 text-muted-foreground hover:text-foreground">
+          <Link key={city} href="/#marketplace" className="rounded-full border bg-background px-3 py-1 text-muted-foreground hover:text-foreground">
             {city}
           </Link>
         ))}
       </div>
-    </div>
-  );
-}
-
-function HeroMapPanel() {
-  return (
-    <div className="overflow-hidden rounded-lg border bg-card shadow-lift">
-      <div className="flex items-center justify-between border-b bg-background px-4 py-3">
-        <div className="flex items-center gap-2 font-semibold">
-          <Building2 className="h-5 w-5 text-primary" />
-          מפת נדל"ן חכמה
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground" dir="ltr">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          live marketplace
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_220px]">
-        <div className="relative min-h-[370px] overflow-hidden bg-[linear-gradient(135deg,hsl(var(--muted))_0%,hsl(var(--background))_100%)]">
-          <div className="absolute inset-0 bg-dots opacity-70" />
-          <div className="absolute right-8 top-8 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-soft">
-            ציור אזור וחיפוש מפה בהמשך
-          </div>
-          <MapPrice top="24%" right="24%" label="8.5K" active />
-          <MapPrice top="42%" right="62%" label="4.2M" />
-          <MapPrice top="66%" right="38%" label="3.1M" />
-          <MapPrice top="55%" right="78%" label="12K" />
-          <MapPrice top="76%" right="18%" label="2.7M" />
-        </div>
-
-        <div className="space-y-3 border-t bg-muted/25 p-4 lg:border-r lg:border-t-0">
-          <PanelMetric icon={Home} label="נכסים פעילים" value="2" />
-          <PanelMetric icon={Heart} label="מועדפים" value="שמור והשווה" />
-          <PanelMetric icon={Bell} label="התראות" value="חיפוש שמור" />
-          <PanelMetric icon={ShieldCheck} label="מקור" value="משרדי תיווך" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MapPrice({ top, right, label, active }: { top: string; right: string; label: string; active?: boolean }) {
-  return (
-    <Link
-      href="#marketplace"
-      className={
-        active
-          ? 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-glow'
-          : 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full border bg-background px-3 py-2 text-sm font-bold shadow-soft hover:border-primary'
-      }
-      style={{ top, right }}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function PanelMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <Icon className="mb-2 h-4 w-4 text-primary" />
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold">{value}</div>
     </div>
   );
 }

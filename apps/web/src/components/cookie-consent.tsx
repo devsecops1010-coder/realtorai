@@ -51,31 +51,31 @@ export function CookieConsent() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 p-3 sm:p-4">
-      <div className="mx-auto max-w-4xl rounded-xl bg-card border shadow-lift p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-        <Cookie className="h-6 w-6 text-amber-600 shrink-0" />
-        <div className="text-sm flex-1">
-          <p className="font-semibold">אנחנו משתמשים ב-Cookies</p>
-          <p className="text-muted-foreground text-xs mt-0.5">
-            רק עוגיות הכרחיות לתפעול המערכת (התחברות, אבטחה). אין מעקב פרסומי.{' '}
-            <Link href="/legal/privacy" className="text-primary hover:underline">
-              מדיניות פרטיות
-            </Link>
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" onClick={accept}>
-            הבנתי
-          </Button>
+    <div className="fixed bottom-3 left-3 right-3 z-40 sm:right-auto sm:w-[380px]">
+      <div className="rounded-lg border bg-card/95 p-3 shadow-lift backdrop-blur">
+        <div className="flex items-start gap-2.5">
+          <Cookie className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-5">Cookies הכרחיים בלבד</p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              התחברות ואבטחה בלבד, ללא מעקב פרסומי.{' '}
+              <Link href="/legal/privacy" className="text-primary hover:underline">
+                פרטיות
+              </Link>
+            </p>
+          </div>
           <button
             type="button"
             onClick={accept}
-            className="text-muted-foreground hover:text-foreground p-1"
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="סגירה"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+        <Button size="sm" onClick={accept} className="mt-2 h-8 w-full">
+          הבנתי
+        </Button>
       </div>
     </div>
   );

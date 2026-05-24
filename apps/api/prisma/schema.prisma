@@ -1131,6 +1131,89 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
+// ---------------------------------------------------------------------------
+// IL geo reference data — public, non-tenant. Sourced from CBS / data.gov.il.
+//
+// Hierarchy:
+//   IlDistrict   (מחוז)        — 6 official districts (Center, TA, ...)
+//     ↓
+//   IlSubDistrict (נפה)        — 15 sub-districts
+//     ↓
+//   IlSettlement (יישוב/עיר)   — ~1,260 official settlements
+//     ↓
+//   IlStreet     (רחוב)        — ~150,000 streets (lazy-imported from CBS)
+//
+// `code` everywhere is the official CBS numeric code so we can re-sync
+// against future data dumps without a manual reconciliation pass.
+//
+// These tables are read-only from the app perspective — populated by the
+// scripts/seed-il-geo.ts importer and queried via the `/geo/*` API. Not
+// tenant-scoped: every tenant sees the same Israel.
+// ---------------------------------------------------------------------------
+
+model IlDistrict {
+  id       String           @id @default(uuid())
+  code     Int              @unique          // CBS district code (0-6)
+  nameHe   String
+  nameEn   String?
+  subs     IlSubDistrict[]
+  settlements IlSettlement[]
+  @@map("il_districts")
+}
+
+model IlSubDistrict {
+  id         String         @id @default(uuid())
+  code       Int            @unique          // CBS sub-district code (e.g. 11 = ירושלים)
+  districtId String
+  district   IlDistrict     @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  nameHe     String
+  nameEn     String?
+  settlements IlSettlement[]
+  @@index([districtId])
+  @@map("il_sub_districts")
+}
+
+model IlSettlement {
+  id            String      @id @default(uuid())
+  code          Int         @unique          // CBS settlement code (4-5 digits)
+  nameHe        String
+  nameEn        String?
+  districtId    String
+  district      IlDistrict  @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  subDistrictId String?
+  subDistrict   IlSubDistrict? @relation(fields: [subDistrictId], references: [id], onDelete: SetNull)
+  // Lat/lng — populated from the open-data feed where present. Some
+  // settlements (small villages) don't have a published centroid; null
+  // is allowed and the UI falls back to district-level placement.
+  latitude      Float?
+  longitude     Float?
+  // Population (CBS year-end estimate). Optional — used to sort
+  // autocomplete results so big cities surface first.
+  population    Int?
+  streets       IlStreet[]
+  @@index([districtId])
+  @@index([subDistrictId])
+  // Trigram search would be nicer but Postgres pg_trgm isn't installed
+  // by default. Plain prefix search on nameHe handles the common case.
+  @@index([nameHe])
+  @@map("il_settlements")
+}
+
+model IlStreet {
+  id           String       @id @default(uuid())
+  // CBS publishes a separate id per (settlement, street) combo. We mirror
+  // that as a unique composite to keep re-imports idempotent.
+  settlementId String
+  settlement   IlSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  code         Int                                                 // CBS street code (unique within settlement)
+  nameHe       String
+  nameEn       String?
+  @@unique([settlementId, code])
+  @@index([settlementId, nameHe])
+  @@index([nameHe])
+  @@map("il_streets")
+}
+
 model BankAuthTemplate {
   id          String   @id @default(uuid())
   bankSlug    String   @unique // 'discount' | 'leumi' | 'hapoalim' | ...

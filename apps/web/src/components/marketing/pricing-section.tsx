@@ -30,7 +30,7 @@ const TIERS: PricingTier[] = [
       'דוח שבועי לבעל המשרד',
     ],
     cta: 'קבע דמו',
-    ctaHref: '#contact',
+    ctaHref: '/#contact',
   },
   {
     name: 'Pro',
@@ -50,7 +50,7 @@ const TIERS: PricingTier[] = [
       'התאמת תסריטים',
     ],
     cta: 'דבר איתנו',
-    ctaHref: '#contact',
+    ctaHref: '/#contact',
   },
   {
     name: 'Network',
@@ -69,7 +69,7 @@ const TIERS: PricingTier[] = [
       'הקמה ב-30 יום + אונבורדינג צוותים',
     ],
     cta: 'דבר איתנו',
-    ctaHref: '#contact',
+    ctaHref: '/#contact',
   },
 ];
 
