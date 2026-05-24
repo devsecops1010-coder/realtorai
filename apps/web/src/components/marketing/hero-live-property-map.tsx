@@ -64,6 +64,8 @@ function selectHeroProperties(items: PublicProperty[]) {
     picked.push(next);
   }
 
+  if (picked.length >= HERO_PROPERTY_LIMIT) return picked.slice(0, HERO_PROPERTY_LIMIT);
+
   for (const item of items) {
     if (picked.some((candidate) => candidate.id === item.id)) continue;
     picked.push(item);

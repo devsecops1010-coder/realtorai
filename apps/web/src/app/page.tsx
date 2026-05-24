@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { MarketingNav } from '@/components/marketing/nav';
 import { Hero } from '@/components/marketing/hero';
 import { PublicMarketplace } from '@/components/marketplace/public-marketplace';
@@ -23,7 +24,11 @@ export default function HomePage() {
       <MarketingNav />
       <main>
         <Hero />
-        <PublicMarketplace />
+        {/* useSearchParams() inside the marketplace requires a Suspense
+            boundary in Next 15 — without it the home prerender fails. */}
+        <Suspense fallback={null}>
+          <PublicMarketplace />
+        </Suspense>
         <PainPoints />
         <HowItWorks />
         <Features />

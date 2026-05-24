@@ -1,20 +1,14 @@
-import Link from 'next/link';
 import {
-  ArrowLeft,
   BarChart3,
   Bot,
   Calculator,
   CheckCircle2,
   Search,
-  SlidersHorizontal,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { HeroLivePropertyMap } from './hero-live-property-map';
-
-const SEARCH_TABS = ['קנייה', 'השכרה', 'דירות חדשות', 'מסחרי'];
-const CITY_CHIPS = ['הרצליה', 'תל אביב', 'ירושלים', 'חיפה', 'רמת גן'];
+import { HeroSearchAutocomplete } from './hero-search-autocomplete';
 
 const HERO_FEATURES = [
   { icon: Search, title: 'חיפוש נכסים', body: 'רשימה, מפה, פילטרים ושמירת חיפושים.' },
@@ -56,7 +50,7 @@ export function Hero() {
               </p>
             </div>
 
-            <HeroSearch />
+            <HeroSearchAutocomplete />
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
               {['מאגר עצמאי ממשרדים', 'מועדפים והשוואה', 'פניות נכנסות ל-CRM'].map((item) => (
@@ -81,57 +75,10 @@ export function Hero() {
   );
 }
 
-function HeroSearch() {
-  return (
-    <div className="rounded-lg border bg-card p-4 shadow-lift">
-      <div className="mb-4 flex flex-wrap gap-2">
-        {SEARCH_TABS.map((tab, index) => (
-          <Link
-            key={tab}
-            href="/#marketplace"
-            className={
-              index === 0
-                ? 'rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground'
-                : 'rounded-md border bg-background px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground'
-            }
-          >
-            {tab}
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-        <Link
-          href="/#marketplace"
-          className="flex min-h-12 items-center gap-3 rounded-md border bg-background px-4 text-right text-muted-foreground hover:border-primary/50 hover:text-foreground"
-        >
-          <Search className="h-5 w-5 text-primary" />
-          חפש עיר, שכונה, רחוב או נכס
-        </Link>
-        <Button asChild variant="outline" className="h-12">
-          <Link href="/#marketplace">
-            <SlidersHorizontal className="h-4 w-4" />
-            פילטרים
-          </Link>
-        </Button>
-        <Button asChild variant="gradient" className="btn-shine h-12">
-          <Link href="/#marketplace">
-            חפש עכשיו
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2 text-sm">
-        {CITY_CHIPS.map((city) => (
-          <Link key={city} href="/#marketplace" className="rounded-full border bg-background px-3 py-1 text-muted-foreground hover:text-foreground">
-            {city}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
+// HeroSearch was replaced by `<HeroSearchAutocomplete>` — the static
+// link version stayed read-only and never actually filtered the
+// marketplace. The new component owns the input + dropdown + tab + chip
+// behaviour all in one place.
 
 function HeroFeature({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
   return (

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { MapPoint } from './live-map';
 import { CityAutocomplete } from '@/components/geo/city-autocomplete';
@@ -102,13 +103,19 @@ const featureInspiration = [
 
 export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' }) {
   const isPage = mode === 'page';
-  const [filters, setFilters] = useState({
-    q: '',
-    dealType: '' as DealType,
-    city: '',
-    maxPrice: '',
-    minRooms: '',
-  });
+  // Read filters from the URL on first render so the hero search
+  // (and shareable links) can deep-link to a pre-filtered marketplace.
+  // The URL is the *source* of truth at load; after that the form
+  // controls own the state — we don't write back to the URL on every
+  // keystroke (would spam history + break the back button).
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState(() => ({
+    q: searchParams.get('q') ?? '',
+    dealType: (searchParams.get('dealType') ?? '') as DealType,
+    city: searchParams.get('city') ?? '',
+    maxPrice: searchParams.get('maxPrice') ?? '',
+    minRooms: searchParams.get('minRooms') ?? '',
+  }));
   const [items, setItems] = useState<PublicProperty[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
