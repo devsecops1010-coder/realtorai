@@ -23,6 +23,18 @@ interface PublicPropertyResponse {
   status: string;
   createdAt: string;
   updatedAt: string;
+  // Amenities — render the "מה יש בנכס" grid. Older properties don't
+  // have these fields populated; the API still returns them as `false`.
+  hasParking: boolean;
+  hasSafeRoom: boolean;
+  isFurnished: boolean;
+  hasStorage: boolean;
+  hasBalcony: boolean;
+  isExclusive: boolean;
+  hasAirCon: boolean;
+  hasBars: boolean;
+  hasElevator: boolean;
+  isAccessible: boolean;
   office: {
     id: string;
     name: string;

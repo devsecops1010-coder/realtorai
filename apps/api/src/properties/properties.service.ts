@@ -68,6 +68,17 @@ export class PropertiesService {
         condition: true,
         coverImageUrl: true,
         galleryUrls: true,
+        // Amenities — power the "מה יש בנכס" grid in the detail page.
+        hasParking: true,
+        hasSafeRoom: true,
+        isFurnished: true,
+        hasStorage: true,
+        hasBalcony: true,
+        isExclusive: true,
+        hasAirCon: true,
+        hasBars: true,
+        hasElevator: true,
+        isAccessible: true,
         status: true,
         notes: true,
         createdAt: true,
@@ -232,6 +243,18 @@ export class PropertiesService {
       condition: dto.condition ?? null,
       coverImageUrl: dto.coverImageUrl ?? null,
       galleryUrls: dto.galleryUrls as Prisma.InputJsonValue | undefined,
+      // Amenities — default false on create. Each field is a boolean column
+      // on Property; the migration's @default(false) handles omitted ones.
+      hasParking: dto.hasParking ?? false,
+      hasSafeRoom: dto.hasSafeRoom ?? false,
+      isFurnished: dto.isFurnished ?? false,
+      hasStorage: dto.hasStorage ?? false,
+      hasBalcony: dto.hasBalcony ?? false,
+      isExclusive: dto.isExclusive ?? false,
+      hasAirCon: dto.hasAirCon ?? false,
+      hasBars: dto.hasBars ?? false,
+      hasElevator: dto.hasElevator ?? false,
+      isAccessible: dto.isAccessible ?? false,
       status: dto.status ?? PropertyStatus.draft,
       notes: dto.notes ?? null,
     };
@@ -257,6 +280,18 @@ export class PropertiesService {
     if (dto.condition !== undefined) data.condition = dto.condition;
     if (dto.coverImageUrl !== undefined) data.coverImageUrl = dto.coverImageUrl;
     if (dto.galleryUrls !== undefined) data.galleryUrls = dto.galleryUrls as Prisma.InputJsonValue;
+    // Amenities — only touch what the caller sent; an omitted amenity
+    // stays unchanged so partial updates don't reset the checklist.
+    if (dto.hasParking !== undefined) data.hasParking = dto.hasParking;
+    if (dto.hasSafeRoom !== undefined) data.hasSafeRoom = dto.hasSafeRoom;
+    if (dto.isFurnished !== undefined) data.isFurnished = dto.isFurnished;
+    if (dto.hasStorage !== undefined) data.hasStorage = dto.hasStorage;
+    if (dto.hasBalcony !== undefined) data.hasBalcony = dto.hasBalcony;
+    if (dto.isExclusive !== undefined) data.isExclusive = dto.isExclusive;
+    if (dto.hasAirCon !== undefined) data.hasAirCon = dto.hasAirCon;
+    if (dto.hasBars !== undefined) data.hasBars = dto.hasBars;
+    if (dto.hasElevator !== undefined) data.hasElevator = dto.hasElevator;
+    if (dto.isAccessible !== undefined) data.isAccessible = dto.isAccessible;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.notes !== undefined) data.notes = dto.notes;
     return this.prisma.scoped.property.update({ where: { id }, data });

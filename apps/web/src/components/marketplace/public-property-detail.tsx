@@ -17,6 +17,8 @@ import Link from 'next/link';
 import {
   Home, MapPin, Layers, Calendar, Phone, MessageCircle, Heart, Scale, Share2,
   Building2, ShieldCheck, Sparkles, Calculator, Loader2, CheckCircle2, AlertTriangle,
+  SquareParking, Sofa, Package, Snowflake, Grid3x3, Diamond, Accessibility,
+  type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,6 +44,18 @@ interface PublicProperty {
   status: string;
   createdAt: string;
   updatedAt: string;
+  // Amenities — render the "מה יש בנכס" grid. Older properties don't
+  // have these fields populated; the API still returns them as `false`.
+  hasParking: boolean;
+  hasSafeRoom: boolean;
+  isFurnished: boolean;
+  hasStorage: boolean;
+  hasBalcony: boolean;
+  isExclusive: boolean;
+  hasAirCon: boolean;
+  hasBars: boolean;
+  hasElevator: boolean;
+  isAccessible: boolean;
   office: {
     id: string;
     name: string;
@@ -124,6 +138,8 @@ export function PublicPropertyDetail({ property }: { property: PublicProperty })
           </header>
 
           <FeatureGrid property={property} pricePerRoom={pricePerRoom} />
+
+          <AmenitiesGrid property={property} />
 
           {property.notes && (
             <section className="space-y-2">
@@ -213,6 +229,76 @@ function Gallery({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "מה יש בנכס" — 10-amenity grid mirroring the standard IL listing UX
+ * (matches yad2/madlan layout: 4 cells per row, active cells in bold
+ * foreground colour, inactive cells in muted gray with no icon fill).
+ *
+ * We always render all 10 amenities even when most are off — empty slots
+ * tell the buyer "this property does NOT have ammenity X", which is just
+ * as actionable as a positive signal.
+ */
+function AmenitiesGrid({ property }: { property: PublicProperty }) {
+  // Lucide icons + a couple of hand-rolled SVGs for amenities lucide doesn't
+  // cover (elevator, balcony). Using a union type so both forms slot in.
+  type AmenityIcon = LucideIcon | ((props: { className?: string }) => React.JSX.Element);
+
+  const ElevatorIcon = ({ className }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 9l3-3 3 3M9 15l3 3 3-3" />
+    </svg>
+  );
+  const BalconyIcon = ({ className }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M4 21h16M6 21V11M18 21V11M6 11h12M8 11V7h8v4M9 13v6M12 13v6M15 13v6" />
+    </svg>
+  );
+
+  // Order matches the yad2 / mashcantaman reference: most common amenities
+  // first; layout is 4 per row on desktop, 2 on mobile.
+  const items: { key: keyof PublicProperty; label: string; icon: AmenityIcon }[] = [
+    { key: 'hasParking',  label: 'חניה',     icon: SquareParking },
+    { key: 'hasStorage',  label: 'מחסן',     icon: Package },
+    { key: 'hasAirCon',   label: 'מזגן',     icon: Snowflake },
+    { key: 'hasElevator', label: 'מעלית',    icon: ElevatorIcon },
+
+    { key: 'hasSafeRoom', label: 'ממ"ד',     icon: ShieldCheck },
+    { key: 'hasBalcony',  label: 'מרפסת',    icon: BalconyIcon },
+    { key: 'hasBars',     label: 'סורגים',   icon: Grid3x3 },
+    { key: 'isAccessible', label: 'גישה לנכים', icon: Accessibility },
+
+    { key: 'isFurnished', label: 'מרוהטת',   icon: Sofa },
+    { key: 'isExclusive', label: 'בבלעדיות', icon: Diamond },
+  ];
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold">מה יש בנכס</h2>
+      {/* Active = foreground colour; inactive = muted at 50% opacity. Same
+          pattern the reference (yad2) uses — keeps absent amenities
+          informative ("does NOT have X") without losing layout symmetry. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
+        {items.map((it) => {
+          const active = Boolean(property[it.key]);
+          const Icon = it.icon;
+          return (
+            <div
+              key={it.key as string}
+              className={`flex items-center justify-end gap-2 ${
+                active ? 'text-foreground' : 'text-muted-foreground/45'
+              }`}
+            >
+              <span className="font-semibold">{it.label}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

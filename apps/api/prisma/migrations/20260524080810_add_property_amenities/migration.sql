@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "properties" ADD COLUMN     "hasAirCon" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasBalcony" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasBars" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasElevator" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasParking" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasSafeRoom" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "hasStorage" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isAccessible" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isExclusive" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isFurnished" BOOLEAN NOT NULL DEFAULT false;

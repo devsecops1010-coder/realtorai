@@ -763,6 +763,21 @@ model Property {
   condition     PropertyCondition?
   coverImageUrl String?
   galleryUrls   Json?
+  // Amenities — surfaced as the "מה יש בנכס" grid on the public detail
+  // page. Booleans (not a JSON blob) so we can later filter on them
+  // (e.g. "only show properties with parking + elevator"). All default
+  // false; existing rows aren't backfilled — they just render greyed-out
+  // in every cell until the office updates the listing.
+  hasParking    Boolean            @default(false)
+  hasSafeRoom   Boolean            @default(false) // ממ"ד
+  isFurnished   Boolean            @default(false)
+  hasStorage    Boolean            @default(false) // מחסן
+  hasBalcony    Boolean            @default(false)
+  isExclusive   Boolean            @default(false) // בבלעדיות
+  hasAirCon     Boolean            @default(false) // מזגן
+  hasBars       Boolean            @default(false) // סורגים
+  hasElevator   Boolean            @default(false)
+  isAccessible  Boolean            @default(false) // גישה לנכים
   status        PropertyStatus     @default(draft)
   notes         String?
   createdAt     DateTime           @default(now())

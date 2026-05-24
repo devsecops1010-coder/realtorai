@@ -275,6 +275,8 @@ export class OnboardingService {
     }
 
     // 3 sample properties — mix of sale + rent, mix of statuses.
+    // Amenity booleans on each seed so the public detail page's
+    // "מה יש בנכס" grid has realistic content right after seeding.
     const propsSeed = [
       {
         dealType: PropertyDealType.sale,
@@ -286,6 +288,10 @@ export class OnboardingService {
         price: 2_850_000,
         status: PropertyStatus.active,
         notes: 'משופצת, מעלית, חניה.',
+        hasParking: true, hasElevator: true, hasSafeRoom: true,
+        hasBalcony: true, hasAirCon: true, hasStorage: false,
+        isFurnished: false, isExclusive: true, hasBars: true,
+        isAccessible: false,
       },
       {
         dealType: PropertyDealType.sale,
@@ -297,6 +303,10 @@ export class OnboardingService {
         price: 2_100_000,
         status: PropertyStatus.active,
         notes: 'נוף לעיר, חניה כפולה.',
+        hasParking: true, hasElevator: true, hasSafeRoom: true,
+        hasBalcony: true, hasAirCon: true, hasStorage: true,
+        isFurnished: false, isExclusive: false, hasBars: false,
+        isAccessible: true,
       },
       {
         dealType: PropertyDealType.rent,
@@ -308,6 +318,10 @@ export class OnboardingService {
         price: 9_500,
         status: PropertyStatus.active,
         notes: 'מרוהטת, כניסה מיידית.',
+        hasParking: true, hasElevator: false, hasSafeRoom: false,
+        hasBalcony: true, hasAirCon: true, hasStorage: false,
+        isFurnished: true, isExclusive: false, hasBars: true,
+        isAccessible: false,
       },
     ];
 
