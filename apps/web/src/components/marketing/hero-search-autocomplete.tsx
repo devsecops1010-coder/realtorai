@@ -258,9 +258,7 @@ export function HeroSearchAutocomplete() {
             )}
           </div>
           <Button asChild variant="outline" className="h-12">
-            {/* פילטרים → /marketplace where the full search panel lives.
-                The home embed below shows only a preview. */}
-            <Link href="/marketplace">
+            <Link href="/#marketplace">
               <SlidersHorizontal className="h-4 w-4" />
               פילטרים
             </Link>

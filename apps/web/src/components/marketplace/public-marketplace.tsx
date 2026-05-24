@@ -277,36 +277,24 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
 
         <FeatureRail />
 
-        {/* Search panel — only on the dedicated /marketplace page.
-            The homepage has its own hero search above (with tabs +
-            chips + advanced drill-down); rendering a second copy of
-            those controls here was confusing duplication. On home
-            the embed is a curated preview — the user uses the hero
-            to search or clicks "פתח עמוד חיפוש מלא" for filters. */}
-        {isPage && (
-          <div className="mt-5">
-            <MarketplaceSearchPanel initial={filters} onChange={setFilters} />
-          </div>
-        )}
+        {/* Unified search panel — live-fetches results on every change.
+            Owns the smart input + chips + hierarchical drill-down all
+            in one place; the old multi-field form is gone. */}
+        <div className="mt-5">
+          <MarketplaceSearchPanel initial={filters} onChange={setFilters} />
+        </div>
 
-        {/* Sub-bar: result count + view switch. Save-search lives
-            only on the search page (no panel = no search to save). */}
+        {/* Sub-bar: result count, save-search, view switch */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span>
-              {loading
-                ? 'טוען...'
-                : isPage
-                  ? `${total} נכסים בתוצאות`
-                  : `${total} נכסים פעילים — תצוגה מקדימה`}
+              {loading ? 'טוען...' : `${total} נכסים בתוצאות`}
             </span>
-            {isPage && (
-              <Button type="button" variant="ghost" size="sm" onClick={saveCurrentSearch}>
-                <Bell className="h-4 w-4" />
-                {searchSaved ? 'החיפוש נשמר' : 'שמור חיפוש'}
-              </Button>
-            )}
-            {isPage && savedSearches.length > 0 && (
+            <Button type="button" variant="ghost" size="sm" onClick={saveCurrentSearch}>
+              <Bell className="h-4 w-4" />
+              {searchSaved ? 'החיפוש נשמר' : 'שמור חיפוש'}
+            </Button>
+            {savedSearches.length > 0 && (
               <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                 {savedSearches.map((search) => (
                   <span key={search} className="rounded-full border bg-background px-2 py-0.5">
