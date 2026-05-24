@@ -763,6 +763,12 @@ model Property {
   condition     PropertyCondition?
   coverImageUrl String?
   galleryUrls   Json?
+  // Geo coordinates — surfaced on the marketplace map. Nullable: when
+  // missing we fall back to the city-centroid lookup at render time, so
+  // every active property still shows somewhere on the map (in the city
+  // it claims) even if no one has bothered to geocode the exact street.
+  latitude      Float?
+  longitude     Float?
   // Amenities — surfaced as the "מה יש בנכס" grid on the public detail
   // page. Booleans (not a JSON blob) so we can later filter on them
   // (e.g. "only show properties with parking + elevator"). All default

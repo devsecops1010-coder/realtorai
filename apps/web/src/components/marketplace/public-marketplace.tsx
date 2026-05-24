@@ -2,6 +2,20 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import type { MapPoint } from './live-map';
+
+// Leaflet touches `window` on import — it must not run on the server.
+// Dynamic-import with ssr:false isolates the map bundle (~40 kB) to the
+// client and only when the user actually switches to map view.
+const LiveMap = dynamic(() => import('./live-map').then((m) => m.LiveMap), {
+  ssr: false,
+  loading: () => (
+    <div className="grid h-full place-items-center bg-muted/30 text-sm text-muted-foreground">
+      טוען מפה...
+    </div>
+  ),
+});
 import {
   ArrowLeft,
   BarChart3,
@@ -47,6 +61,11 @@ interface PublicProperty {
   condition: string | null;
   coverImageUrl: string | null;
   galleryUrls: string[] | null;
+  // Geo — server-resolved (real value falls back to city centroid).
+  // Null when even the city is unknown — those properties are skipped
+  // on the map but still listed.
+  latitude: number | null;
+  longitude: number | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -689,43 +708,35 @@ function MapView({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const positions = [
-    { top: '24%', right: '22%' },
-    { top: '44%', right: '56%' },
-    { top: '62%', right: '36%' },
-    { top: '31%', right: '74%' },
-    { top: '72%', right: '68%' },
-    { top: '52%', right: '18%' },
-  ];
+  // Translate the marketplace items into the minimal shape the LiveMap
+  // needs. Drops anything without resolved geo (e.g. property in an
+  // unknown city) — those rows still appear in the right-side list.
+  const mapPoints: MapPoint[] = items
+    .filter((it) => typeof it.latitude === 'number' && typeof it.longitude === 'number')
+    .map((it) => ({
+      id: it.id,
+      lat: it.latitude as number,
+      lng: it.longitude as number,
+      price: it.price,
+      dealType: it.dealType,
+      title: [it.city, it.area, it.street].filter(Boolean).join(', ') || 'נכס',
+      subtitle: [
+        it.rooms ? `${it.rooms} חדרים` : null,
+        it.floor !== null ? `קומה ${it.floor}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      imageUrl: it.coverImageUrl,
+    }));
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-      <div className="relative min-h-[420px] overflow-hidden rounded-lg border bg-[linear-gradient(135deg,hsl(var(--muted))_0%,hsl(var(--background))_100%)]">
-        <div className="absolute inset-0 bg-dots opacity-70" />
-        <div className="absolute inset-x-6 top-1/3 h-px bg-primary/20" />
-        <div className="absolute bottom-1/4 left-8 right-12 h-px bg-amber-500/30" />
-        <div className="absolute bottom-10 right-10 rounded-md border bg-background/90 px-3 py-2 text-sm shadow-soft">
+      <div className="relative min-h-[420px] overflow-hidden rounded-lg border">
+        {/* Floating "N נכסים באזור" tag — same visual the fake map had. */}
+        <div className="absolute bottom-3 right-3 z-[1000] rounded-md border bg-background/95 px-3 py-2 text-sm shadow-soft backdrop-blur">
           {items.length} נכסים באזור
         </div>
-        {items.map((item, index) => {
-          const pos = positions[index % positions.length];
-          const active = item.id === selectedId;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              className={
-                active
-                  ? 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-glow'
-                  : 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full border bg-background px-3 py-2 text-sm font-bold shadow-soft hover:border-primary'
-              }
-              style={pos}
-            >
-              {item.price ? shortPrice(item.price) : 'נכס'}
-            </button>
-          );
-        })}
+        <LiveMap points={mapPoints} selectedId={selectedId} onSelect={onSelect} />
       </div>
       <div className="space-y-2">
         {items.map((item) => (

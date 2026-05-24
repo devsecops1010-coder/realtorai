@@ -18,6 +18,7 @@ import { UpdatePropertyDto } from './dto/update-property.dto';
 import { BulkUploadOwnersDto, OwnerLeadInputDto } from './dto/bulk-upload.dto';
 import { CreatePublicPropertyLeadDto } from './dto/create-public-property-lead.dto';
 import { PublicPropertySearchQuery } from './dto/public-property-search.query';
+import { resolvePropertyGeo } from './il-city-centroids';
 
 @Injectable()
 export class PropertiesService {
@@ -68,6 +69,9 @@ export class PropertiesService {
         condition: true,
         coverImageUrl: true,
         galleryUrls: true,
+        // Geo — raw stored values; the caller resolves to centroid if null.
+        latitude: true,
+        longitude: true,
         // Amenities — power the "מה יש בנכס" grid in the detail page.
         hasParking: true,
         hasSafeRoom: true,
@@ -95,7 +99,15 @@ export class PropertiesService {
       },
     });
     if (!property) throw new NotFoundException('Property not found');
-    return property;
+    // Backfill lat/lng with city centroid if missing. The map needs *some*
+    // coord per property; without this, properties without an explicit
+    // geocode would vanish from the map even though we know their city.
+    const geo = resolvePropertyGeo(property);
+    return {
+      ...property,
+      latitude: geo?.lat ?? property.latitude,
+      longitude: geo?.lng ?? property.longitude,
+    };
   }
 
   async publicSearch(query: PublicPropertySearchQuery) {
@@ -143,6 +155,8 @@ export class PropertiesService {
           condition: true,
           coverImageUrl: true,
           galleryUrls: true,
+          latitude: true,
+          longitude: true,
           status: true,
           notes: true,
           createdAt: true,
@@ -161,7 +175,18 @@ export class PropertiesService {
       this.prisma.unscoped().property.count({ where }),
     ]);
 
-    return { items, total, take, skip };
+    // Backfill lat/lng with city centroid for items missing geocoded
+    // coords. Doing it once on the server keeps the client simple — no
+    // need to ship the centroid table to the browser.
+    const itemsWithGeo = items.map((item) => {
+      const geo = resolvePropertyGeo(item);
+      return {
+        ...item,
+        latitude: geo?.lat ?? item.latitude,
+        longitude: geo?.lng ?? item.longitude,
+      };
+    });
+    return { items: itemsWithGeo, total, take, skip };
   }
 
   async createPublicLead(propertyId: string, dto: CreatePublicPropertyLeadDto) {
