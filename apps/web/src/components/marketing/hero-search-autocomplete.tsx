@@ -309,11 +309,6 @@ export function HeroSearchAutocomplete() {
                           <Home className="h-4 w-4 text-primary" />
                           <span className="font-medium">{s.nameHe}</span>
                         </span>
-                        {s.population && (
-                          <span className="text-xs text-muted-foreground">
-                            {(s.population / 1000).toFixed(0)}k תושבים
-                          </span>
-                        )}
                       </li>
                     );
                   })}

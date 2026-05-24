@@ -11,6 +11,7 @@ import {
   EMPTY_HIERARCHICAL_SEARCH,
   type HierarchicalSearchValue,
 } from '@/components/geo/hierarchical-search';
+import { MarketSearchAutocomplete } from './market-search-autocomplete';
 
 // Leaflet touches `window` on import — it must not run on the server.
 // Dynamic-import with ssr:false isolates the map bundle (~40 kB) to the
@@ -303,16 +304,28 @@ export function PublicMarketplace({ mode = 'home' }: { mode?: 'home' | 'page' })
         <form onSubmit={load} className="mt-5 grid gap-3 rounded-lg border bg-card p-4 shadow-soft md:grid-cols-6">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="market-q">חיפוש חופשי</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="market-q"
-                value={filters.q}
-                onChange={(e) => setFilters((prev) => ({ ...prev, q: e.target.value }))}
-                placeholder="עיר, שכונה, רחוב או תיאור"
-                className="pr-9"
-              />
-            </div>
+            {/* Smart autocomplete — settlements globally, and once a
+                city is picked it narrows to street suggestions inside
+                that city. Picking a street fills both `q` and `city`
+                so the next "סנן נכסים" run uses both filters. */}
+            <MarketSearchAutocomplete
+              value={filters.q}
+              city={filters.city}
+              onChange={(v) => setFilters((prev) => ({ ...prev, q: v }))}
+              onSelectCity={(cityName) =>
+                setFilters((prev) => ({ ...prev, city: cityName, q: '' }))
+              }
+              onSelectStreet={(streetName, cityName) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  q: streetName,
+                  // Switch the city filter only if the picked street's
+                  // city differs — avoids clobbering a user-typed
+                  // variant of the same name.
+                  city: cityName || prev.city,
+                }))
+              }
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="market-deal-type">סוג עסקה</Label>

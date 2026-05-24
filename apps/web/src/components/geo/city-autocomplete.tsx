@@ -166,7 +166,6 @@ export function CityAutocomplete({
               <span className="font-medium">{s.nameHe}</span>
               <span className="text-xs text-muted-foreground">
                 {s.district.nameHe}
-                {s.population ? ` · ${(s.population / 1000).toFixed(0)}k` : ''}
               </span>
             </li>
           ))}

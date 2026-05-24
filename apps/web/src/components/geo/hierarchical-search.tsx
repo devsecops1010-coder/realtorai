@@ -348,7 +348,6 @@ export function HierarchicalSearch({
             {settlements.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nameHe}
-                {s.population ? ` · ${(s.population / 1000).toFixed(0)}k` : ''}
               </option>
             ))}
           </select>
